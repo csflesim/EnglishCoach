@@ -37,8 +37,9 @@ type Tab = "patterns" | "vocab" | "wordbook" | "bulk";
 
 export default function AdminPage() {
   const [, setTick] = useState(0);
+  const [ready, setReady] = useState(false);
   const refresh = () => setTick((t) => t + 1);
-  useEffect(() => { initContent(); refresh(); }, []);
+  useEffect(() => { initContent().then(() => { setReady(true); refresh(); }); }, []);
   const [tab, setTab] = useState<Tab>("patterns");
   const [seedMsg, setSeedMsg] = useState("");
   const [seeding, setSeeding] = useState(false);
@@ -78,10 +79,16 @@ export default function AdminPage() {
           {seedMsg && <div className="w-full text-sm text-accent">{seedMsg}</div>}
         </div>
 
-        {tab === "patterns" && <PatternsAdmin onChange={refresh} />}
-        {tab === "vocab" && <VocabAdmin onChange={refresh} />}
-        {tab === "wordbook" && <WordbookAdmin onChange={refresh} />}
-        {tab === "bulk" && <BulkAdmin onChange={refresh} />}
+        {!ready ? (
+          <p className="text-center text-sm text-slate-500">載入內容中…</p>
+        ) : (
+          <>
+            {tab === "patterns" && <PatternsAdmin onChange={refresh} />}
+            {tab === "vocab" && <VocabAdmin onChange={refresh} />}
+            {tab === "wordbook" && <WordbookAdmin onChange={refresh} />}
+            {tab === "bulk" && <BulkAdmin onChange={refresh} />}
+          </>
+        )}
       </main>
     </div>
   );
