@@ -20,7 +20,11 @@ import {
   removeWordbook,
   addWordsToBook,
   wordbookCount,
+  getBookWords,
+  getActiveWordbook,
+  setActiveWordbook,
   seedToDb,
+  type VocabView,
 } from "@/lib/content";
 import { hasSupabase } from "@/lib/supabase";
 
@@ -139,23 +143,39 @@ function PatternsAdmin({ onChange }: { onChange: () => void }) {
   );
 }
 
-// ─────────── 詞本（只存名稱;單字進 vocabulary + wordbook_vocab）───────────
+// ─────────── 詞本（catalog;單字進 vocabulary.wordbooks 陣列）───────────
+const PAGE = 60;
 function WordbookAdmin({ onChange }: { onChange: () => void }) {
-  const names = getWordbooks().map((b) => b.name);
+  const catalog = getWordbooks();
+  const names = catalog.map((b) => b.name);
+  const labelOf = (n: string) => catalog.find((b) => b.name === n)?.label;
   const [newName, setNewName] = useState("");
   const [selected, setSelected] = useState<string | null>(names[0] ?? null);
   const [bulk, setBulk] = useState("");
   const [msg, setMsg] = useState("");
   const [count, setCount] = useState<number | null>(null);
+  const [active, setActive] = useState<string | null>(null);
+  // 單詞檢視
+  const [words, setWords] = useState<VocabView[]>([]);
+  const [search, setSearch] = useState("");
+  const [more, setMore] = useState(false);
 
   const book = selected && names.includes(selected) ? selected : names[0] ?? null;
 
+  useEffect(() => { setActive(getActiveWordbook()); }, []);
   useEffect(() => {
     let on = true;
     if (book) wordbookCount(book).then((c) => on && setCount(c));
     else setCount(null);
     return () => { on = false; };
   }, [book, msg]);
+  // 載入單詞(換書 / 搜尋 / 匯入後)
+  useEffect(() => {
+    let on = true;
+    if (!book) { setWords([]); return; }
+    getBookWords(book, 0, PAGE, search).then((w) => { if (on) { setWords(w); setMore(w.length === PAGE); } });
+    return () => { on = false; };
+  }, [book, search, msg]);
 
   async function create() {
     const n = newName.trim();
@@ -169,6 +189,13 @@ function WordbookAdmin({ onChange }: { onChange: () => void }) {
     setBulk("");
     onChange();
   }
+  async function loadMore() {
+    if (!book) return;
+    const next = await getBookWords(book, words.length, PAGE, search);
+    setWords((w) => [...w, ...next]);
+    setMore(next.length === PAGE);
+  }
+  function makeActive(n: string) { setActiveWordbook(n); setActive(n); }
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     if (f) f.text().then((t) => setBulk(t));
@@ -186,11 +213,11 @@ function WordbookAdmin({ onChange }: { onChange: () => void }) {
 
       {names.length > 0 && (
         <div className="card p-4">
-          <div className="mb-2 text-sm font-semibold text-slate-300">我的詞本({names.length})</div>
+          <div className="mb-2 text-sm font-semibold text-slate-300">我的詞本({names.length}) · 點選查看;⭐ = 目前使用</div>
           <div className="flex flex-wrap gap-2">
             {names.map((n) => (
               <button key={n} onClick={() => setSelected(n)} className={`chip ${book === n ? "bg-accent text-ink-950" : "bg-ink-800 text-slate-300"}`}>
-                {n}
+                {active === n && "⭐ "}{n}{labelOf(n) ? `(${labelOf(n)})` : ""}
                 <span onClick={async (e) => { e.stopPropagation(); if (confirm(`刪除詞本「${n}」?(字仍留在單字庫)`)) { await removeWordbook(n); if (selected === n) setSelected(null); onChange(); } }} className="ml-1 text-red-400">✕</span>
               </button>
             ))}
@@ -201,18 +228,58 @@ function WordbookAdmin({ onChange }: { onChange: () => void }) {
       {!book ? (
         <p className="text-center text-sm text-slate-500">先建立一個詞本,再上傳單字。</p>
       ) : (
-        <div className="card p-4">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-sm font-semibold text-slate-300">批量上傳到「{book}」{count !== null && <span className="text-slate-500">· 目前 {count} 字</span>}</span>
-            <label className="chip cursor-pointer bg-ink-700 text-slate-300">選檔(.txt/.csv)<input type="file" accept=".txt,.csv,text/plain,text/csv" onChange={onFile} className="hidden" /></label>
+        <>
+          {/* 使用中 + 計數 */}
+          <div className="card flex flex-wrap items-center gap-3 p-4">
+            <div className="flex-1 text-sm">
+              <span className="font-semibold text-slate-200">{book}{labelOf(book) ? `(${labelOf(book)})` : ""}</span>
+              {count !== null && <span className="ml-2 text-slate-500">{count} 字</span>}
+            </div>
+            {active === book ? (
+              <span className="chip bg-accent/15 text-accent">⭐ 目前使用中</span>
+            ) : (
+              <button onClick={() => makeActive(book)} className="btn-ghost text-sm">設為目前使用</button>
+            )}
           </div>
-          <p className="mb-2 text-xs text-slate-500">一行或逗號一個。字會存進共用單字庫(vocabulary)並連到此詞本;分類/中文之後由 AI 補。</p>
-          <textarea value={bulk} onChange={(e) => setBulk(e.target.value)} rows={6} placeholder={"boarding pass\ngate\nlayover\ncarry-on"} className="w-full resize-y rounded-xl border border-ink-700 bg-ink-900/60 px-3 py-2.5 font-mono text-xs text-slate-200 outline-none placeholder:text-slate-600" />
-          <div className="mt-2 flex items-center justify-end gap-2">
-            {msg && <span className="text-sm text-accent">{msg}</span>}
-            <button onClick={many} className="btn-primary">匯入</button>
+
+          {/* 單詞檢視 */}
+          <div className="card p-4">
+            <div className="mb-2 flex items-center gap-2">
+              <span className="text-sm font-semibold text-slate-300">單詞</span>
+              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="搜尋…" className="ml-auto w-40 rounded-lg border border-ink-700 bg-ink-900/60 px-2.5 py-1.5 text-xs text-slate-200 outline-none placeholder:text-slate-600" />
+            </div>
+            {words.length === 0 ? (
+              <p className="py-4 text-center text-xs text-slate-600">{search ? "查無單詞" : "此詞本還沒有單詞"}</p>
+            ) : (
+              <>
+                <ul className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                  {words.map((w) => (
+                    <li key={w.word} className="flex items-center gap-2 rounded-lg border border-ink-700 bg-ink-900/40 px-2.5 py-1.5 text-sm">
+                      <span className="text-slate-100">{w.word}</span>
+                      {w.native_zh && <span className="text-xs text-slate-500">{w.native_zh}</span>}
+                      {w.categories?.length > 0 && <span className="ml-auto chip bg-ink-700 text-[10px] text-slate-400">{w.categories.join("/")}</span>}
+                    </li>
+                  ))}
+                </ul>
+                {more && <button onClick={loadMore} className="btn-ghost mt-3 w-full text-sm">載入更多</button>}
+              </>
+            )}
           </div>
-        </div>
+
+          {/* 批量上傳 */}
+          <div className="card p-4">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-sm font-semibold text-slate-300">批量上傳到「{book}」</span>
+              <label className="chip cursor-pointer bg-ink-700 text-slate-300">選檔(.txt/.csv)<input type="file" accept=".txt,.csv,text/plain,text/csv" onChange={onFile} className="hidden" /></label>
+            </div>
+            <p className="mb-2 text-xs text-slate-500">一行或逗號一個。字會存進共用單字庫並連到此詞本;分類/中文之後由 AI 補。</p>
+            <textarea value={bulk} onChange={(e) => setBulk(e.target.value)} rows={5} placeholder={"boarding pass\ngate\nlayover"} className="w-full resize-y rounded-xl border border-ink-700 bg-ink-900/60 px-3 py-2.5 font-mono text-xs text-slate-200 outline-none placeholder:text-slate-600" />
+            <div className="mt-2 flex items-center justify-end gap-2">
+              {msg && <span className="text-sm text-accent">{msg}</span>}
+              <button onClick={many} className="btn-primary">匯入</button>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

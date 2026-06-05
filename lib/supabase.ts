@@ -82,6 +82,19 @@ export async function selectIn<T = Record<string, unknown>>(table: string, col: 
   }
 }
 
+export async function pageVocabByBook<T = Record<string, unknown>>(name: string, offset: number, limit: number, search = ""): Promise<T[]> {
+  const c = sb();
+  if (!c) return [];
+  try {
+    let q = c.from("vocabulary").select("word,native_zh,categories,pos").contains("wordbooks", [name]).order("word").range(offset, offset + limit - 1);
+    if (search) q = q.ilike("word", `%${search}%`);
+    const { data } = await q;
+    return (data ?? []) as T[];
+  } catch {
+    return [];
+  }
+}
+
 export async function countContains(table: string, col: string, val: string): Promise<number> {
   const c = sb();
   if (!c) return 0;

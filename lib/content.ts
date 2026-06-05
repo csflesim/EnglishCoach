@@ -17,7 +17,7 @@ import {
   type Cycle,
   type Unit,
 } from "./mock";
-import { hasSupabase, selectAll, selectIn, upsertRows, deleteWhere, countContains } from "./supabase";
+import { hasSupabase, selectAll, selectIn, upsertRows, deleteWhere, countContains, pageVocabByBook } from "./supabase";
 
 type CycleRow = { cycle: number; title: string; clb: string };
 type UnitRow = { unit: number; cycle: number; goal: string; focus: string; pattern: string; lesson_id: string | null };
@@ -120,6 +120,21 @@ export async function removeWordbook(name: string): Promise<void> {
 export async function wordbookCount(name: string): Promise<number> {
   if (!hasSupabase) return 0;
   return countContains("vocabulary", "wordbooks", name);
+}
+export type VocabView = { word: string; native_zh: string; categories: string[]; pos: string | null };
+export async function getBookWords(name: string, offset = 0, limit = 60, search = ""): Promise<VocabView[]> {
+  if (!hasSupabase) return [];
+  return pageVocabByBook<VocabView>(name, offset, limit, search.trim());
+}
+
+// 目前使用中的詞本(供之後 AI 選詞來源);存 localStorage
+const AKEY = "erc_active_wordbook";
+export function getActiveWordbook(): string | null {
+  if (typeof window === "undefined") return null;
+  try { return localStorage.getItem(AKEY); } catch { return null; }
+}
+export function setActiveWordbook(name: string) {
+  try { localStorage.setItem(AKEY, name); } catch { /* ignore */ }
 }
 // 加字:upsert 進 vocabulary,並把詞本名併入該字的 wordbooks 陣列(讀-合併-寫)
 export async function addWordsToBook(name: string, words: string[]): Promise<number> {
