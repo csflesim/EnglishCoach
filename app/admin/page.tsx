@@ -213,17 +213,17 @@ function WordbookAdmin({ onChange }: { onChange: () => void }) {
 
   const book = books.find((b) => b.name === selected) ?? books[0] ?? null;
 
-  function create() {
+  async function create() {
     const n = newName.trim();
-    if (createWordbook(n)) { setNewName(""); setSelected(n); onChange(); }
+    if (await createWordbook(n)) { setNewName(""); setSelected(n); onChange(); }
   }
-  function one() {
-    if (book && addWordToBook(book.name, word)) { setWord(""); onChange(); }
+  async function one() {
+    if (book && (await addWordToBook(book.name, word))) { setWord(""); onChange(); }
   }
-  function many() {
+  async function many() {
     if (!book) return;
     const list = bulk.split(/[\n,]/).map((w) => w.trim()).filter(Boolean);
-    const n = addWordsToBook(book.name, list);
+    const n = await addWordsToBook(book.name, list);
     setMsg(`已新增 ${n} 個單詞`);
     setBulk("");
     onChange();
@@ -252,7 +252,7 @@ function WordbookAdmin({ onChange }: { onChange: () => void }) {
             {books.map((b) => (
               <button key={b.name} onClick={() => setSelected(b.name)} className={`chip ${book?.name === b.name ? "bg-accent text-ink-950" : "bg-ink-800 text-slate-300"}`}>
                 {b.name}({b.words.length})
-                <span onClick={(e) => { e.stopPropagation(); if (confirm(`刪除詞本「${b.name}」?`)) { removeWordbook(b.name); if (selected === b.name) setSelected(null); onChange(); } }} className="ml-1 text-red-400">✕</span>
+                <span onClick={async (e) => { e.stopPropagation(); if (confirm(`刪除詞本「${b.name}」?`)) { await removeWordbook(b.name); if (selected === b.name) setSelected(null); onChange(); } }} className="ml-1 text-red-400">✕</span>
               </button>
             ))}
           </div>
@@ -293,7 +293,7 @@ function WordbookAdmin({ onChange }: { onChange: () => void }) {
                 {book.words.map((w) => (
                   <span key={w} className="chip bg-ink-800 text-slate-300">
                     {w}
-                    <button onClick={() => { removeWordFromBook(book.name, w); onChange(); }} className="ml-1 text-red-400">✕</button>
+                    <button onClick={async () => { await removeWordFromBook(book.name, w); onChange(); }} className="ml-1 text-red-400">✕</button>
                   </span>
                 ))}
               </div>

@@ -14,7 +14,7 @@ import {
   type VocabWord,
   type SubFrame,
 } from "./mock";
-import { hasSupabase, kvGet, kvSet, upsertRows } from "./supabase";
+import { hasSupabase, kvGet, kvSet, upsertRows, selectAll, deleteWhere } from "./supabase";
 
 const LKEY = "erc_content_v1";
 
@@ -45,6 +45,7 @@ function writeLocal(o: Overrides) {
 }
 
 let cache: Overrides | null = null;
+let wbCache: WordBook[] | null = null; // 詞本(獨立資料表)的記憶體快取
 let applied = false;
 
 function cur(): Overrides {
@@ -70,6 +71,13 @@ export async function initContent(): Promise<void> {
   }
   cache.vocab.forEach(addVocabRuntime);
   Object.entries(cache.frames).forEach(([lessonId, frames]) => frames.forEach((f) => addFrameRuntime(lessonId, f)));
+  // 詞本:Supabase 有獨立資料表;否則用本機 content blob 內的 wordbooks
+  if (hasSupabase) {
+    const rows = await selectAll<{ name: string; words: string[] }>("wordbooks");
+    wbCache = rows.map((r) => ({ name: r.name, words: Array.isArray(r.words) ? r.words : [] }));
+  } else {
+    wbCache = cache.wordbooks;
+  }
 }
 
 // ── 單字 ──
@@ -122,43 +130,53 @@ export function addFramesBulk(lessonId: string, frames: SubFrame[]): number {
   return n;
 }
 
-// ── 詞本(多本) ──
-export function getWordbooks(): WordBook[] {
-  return cur().wordbooks;
+// ── 詞本(多本)── Supabase 有獨立 wordbooks 表;否則存本機 content blob。
+function wbList(): WordBook[] {
+  if (!wbCache) wbCache = hasSupabase ? [] : cur().wordbooks;
+  return wbCache;
 }
-export function createWordbook(name: string): boolean {
+async function saveBook(book: WordBook) {
+  if (hasSupabase) await upsertRows("wordbooks", [{ name: book.name, words: book.words }], "name");
+  else { cur().wordbooks = wbList(); persist(); }
+}
+
+export function getWordbooks(): WordBook[] {
+  return wbList();
+}
+export async function createWordbook(name: string): Promise<boolean> {
   const n = name.trim();
   if (!n) return false;
-  const o = cur();
-  if (o.wordbooks.some((b) => b.name === n)) return false;
-  o.wordbooks.push({ name: n, words: [] });
-  persist();
+  const list = wbList();
+  if (list.some((b) => b.name === n)) return false;
+  const book: WordBook = { name: n, words: [] };
+  wbCache = [...list, book];
+  await saveBook(book);
   return true;
 }
-export function removeWordbook(name: string) {
-  const o = cur();
-  o.wordbooks = o.wordbooks.filter((b) => b.name !== name);
-  persist();
+export async function removeWordbook(name: string) {
+  wbCache = wbList().filter((b) => b.name !== name);
+  if (hasSupabase) await deleteWhere("wordbooks", "name", name);
+  else { cur().wordbooks = wbCache; persist(); }
 }
-export function addWordToBook(name: string, word: string): boolean {
+export async function addWordToBook(name: string, word: string): Promise<boolean> {
   const w = word.trim();
   if (!w) return false;
-  const o = cur();
-  const book = o.wordbooks.find((b) => b.name === name);
+  const book = wbList().find((b) => b.name === name);
   if (!book || book.words.some((x) => x.toLowerCase() === w.toLowerCase())) return false;
-  book.words.push(w);
-  persist();
+  book.words = [...book.words, w];
+  wbCache = [...wbList()];
+  await saveBook(book);
   return true;
 }
-export function removeWordFromBook(name: string, word: string) {
-  const o = cur();
-  const book = o.wordbooks.find((b) => b.name === name);
-  if (book) book.words = book.words.filter((x) => x !== word);
-  persist();
+export async function removeWordFromBook(name: string, word: string) {
+  const book = wbList().find((b) => b.name === name);
+  if (!book) return;
+  book.words = book.words.filter((x) => x !== word);
+  wbCache = [...wbList()];
+  await saveBook(book);
 }
-export function addWordsToBook(name: string, words: string[]): number {
-  const o = cur();
-  const book = o.wordbooks.find((b) => b.name === name);
+export async function addWordsToBook(name: string, words: string[]): Promise<number> {
+  const book = wbList().find((b) => b.name === name);
   if (!book) return 0;
   const lower = new Set(book.words.map((x) => x.toLowerCase()));
   let n = 0;
@@ -170,7 +188,8 @@ export function addWordsToBook(name: string, words: string[]): number {
       n++;
     }
   }
-  persist();
+  wbCache = [...wbList()];
+  await saveBook(book);
   return n;
 }
 

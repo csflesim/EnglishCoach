@@ -39,6 +39,28 @@ export async function kvSet(key: string, value: unknown): Promise<void> {
   }
 }
 
+export async function selectAll<T = Record<string, unknown>>(table: string): Promise<T[]> {
+  const c = sb();
+  if (!c) return [];
+  try {
+    const { data, error } = await c.from(table).select("*");
+    if (error) return [];
+    return (data ?? []) as T[];
+  } catch {
+    return [];
+  }
+}
+
+export async function deleteWhere(table: string, col: string, val: string): Promise<void> {
+  const c = sb();
+  if (!c) return;
+  try {
+    await c.from(table).delete().eq(col, val);
+  } catch {
+    /* ignore */
+  }
+}
+
 // 批量 upsert(分批避免 payload 過大);成功回 null,失敗回錯誤訊息
 export async function upsertRows(table: string, rows: Record<string, unknown>[], onConflict?: string): Promise<string | null> {
   const c = sb();

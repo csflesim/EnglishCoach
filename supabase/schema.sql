@@ -42,3 +42,13 @@ create table if not exists patterns (
 alter table patterns enable row level security;
 drop policy if exists "patterns anon all" on patterns;
 create policy "patterns anon all" on patterns for all using (true) with check (true);
+
+-- 詞本(多本):每本一列,單詞存 words jsonb 陣列
+create table if not exists wordbooks (
+  name text primary key,
+  words jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now()
+);
+alter table wordbooks enable row level security;
+drop policy if exists "wordbooks anon all" on wordbooks;
+create policy "wordbooks anon all" on wordbooks for all using (true) with check (true);
