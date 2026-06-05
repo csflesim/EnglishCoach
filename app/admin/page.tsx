@@ -29,7 +29,9 @@ import {
   addWordToBook,
   removeWordFromBook,
   addWordsToBook,
+  seedToDb,
 } from "@/lib/content";
+import { hasSupabase } from "@/lib/supabase";
 
 type Tab = "patterns" | "vocab" | "wordbook" | "bulk";
 
@@ -38,6 +40,13 @@ export default function AdminPage() {
   const refresh = () => setTick((t) => t + 1);
   useEffect(() => { initContent(); refresh(); }, []);
   const [tab, setTab] = useState<Tab>("patterns");
+  const [seedMsg, setSeedMsg] = useState("");
+  const [seeding, setSeeding] = useState(false);
+  async function seed() {
+    setSeeding(true);
+    setSeedMsg(await seedToDb());
+    setSeeding(false);
+  }
 
   return (
     <div className="min-h-screen bg-ink-950">
@@ -59,6 +68,16 @@ export default function AdminPage() {
       </header>
 
       <main className="mx-auto max-w-4xl px-4 py-5">
+        {/* 種子上傳到資料庫 */}
+        <div className="card mb-4 flex flex-wrap items-center gap-3 p-4">
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-semibold text-slate-300">把種子內容上傳到資料庫</div>
+            <div className="text-xs text-slate-500">{hasSupabase ? "把程式內建的單字 + 句型課寫進 Supabase(可重複執行,以 upsert 更新)。" : "尚未設定 Supabase(NEXT_PUBLIC_SUPABASE_*),目前存 localStorage。"}</div>
+          </div>
+          <button onClick={seed} disabled={!hasSupabase || seeding} className="btn-primary">{seeding ? "上傳中…" : "⬆ 上傳種子"}</button>
+          {seedMsg && <div className="w-full text-sm text-accent">{seedMsg}</div>}
+        </div>
+
         {tab === "patterns" && <PatternsAdmin onChange={refresh} />}
         {tab === "vocab" && <VocabAdmin onChange={refresh} />}
         {tab === "wordbook" && <WordbookAdmin onChange={refresh} />}

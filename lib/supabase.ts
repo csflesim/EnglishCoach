@@ -38,3 +38,19 @@ export async function kvSet(key: string, value: unknown): Promise<void> {
     /* ignore */
   }
 }
+
+// 批量 upsert(分批避免 payload 過大);成功回 null,失敗回錯誤訊息
+export async function upsertRows(table: string, rows: Record<string, unknown>[], onConflict?: string): Promise<string | null> {
+  const c = sb();
+  if (!c) return "未設定 Supabase";
+  try {
+    for (let i = 0; i < rows.length; i += 200) {
+      const chunk = rows.slice(i, i + 200);
+      const { error } = await c.from(table).upsert(chunk, onConflict ? { onConflict } : undefined);
+      if (error) return error.message;
+    }
+    return null;
+  } catch (e) {
+    return String(e);
+  }
+}

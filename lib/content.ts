@@ -9,10 +9,12 @@ import {
   removeVocabRuntime,
   addFrameRuntime,
   removeFrameRuntime,
+  vocabBank,
+  lessons,
   type VocabWord,
   type SubFrame,
 } from "./mock";
-import { hasSupabase, kvGet, kvSet } from "./supabase";
+import { hasSupabase, kvGet, kvSet, upsertRows } from "./supabase";
 
 const LKEY = "erc_content_v1";
 
@@ -170,4 +172,28 @@ export function addWordsToBook(name: string, words: string[]): number {
   }
   persist();
   return n;
+}
+
+// ── 把程式內的種子內容(單字 + 句型課)上傳到 Supabase 資料表 ──
+export async function seedToDb(): Promise<string> {
+  if (!hasSupabase) return "未設定 Supabase";
+  const vErr = await upsertRows(
+    "vocabulary",
+    vocabBank.map((v) => ({ word: v.word, native_zh: v.nativeZh, category: v.category, source: "seed" })),
+    "word,category",
+  );
+  if (vErr) return "單字上傳失敗:" + vErr;
+  const pErr = await upsertRows(
+    "patterns",
+    lessons.map((l) => ({
+      id: l.id,
+      unit: l.unit,
+      pattern_text: l.patternText,
+      transform_frame: l.transformFrame ?? null,
+      drills: { substitution: l.substitution, transformation: l.transformation, expansion: l.expansion, response: l.response },
+    })),
+    "id",
+  );
+  if (pErr) return "句型上傳失敗:" + pErr;
+  return `✓ 已上傳 ${vocabBank.length} 個單字、${lessons.length} 個句型課到資料庫`;
 }
