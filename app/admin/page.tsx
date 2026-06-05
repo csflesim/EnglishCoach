@@ -23,10 +23,12 @@ import {
   removeWordFromBook,
   addWordsToBook,
   seedToDb,
+  patternVocabCount,
+  patternVocabTotal,
 } from "@/lib/content";
 import { hasSupabase } from "@/lib/supabase";
 
-type Tab = "patterns" | "wordbook";
+type Tab = "patterns" | "wordbook" | "patternvocab";
 
 export default function AdminPage() {
   const [, setTick] = useState(0);
@@ -55,7 +57,7 @@ export default function AdminPage() {
           <Link href="/" className="btn-ghost ml-auto px-3 py-1.5 text-xs">← 回前台</Link>
         </div>
         <div className="mx-auto flex max-w-4xl gap-1 px-4 pb-2">
-          {([["patterns", "句型管理"], ["wordbook", "詞本"]] as [Tab, string][]).map(([t, label]) => (
+          {([["patterns", "句型管理"], ["wordbook", "詞本"], ["patternvocab", "句型詞庫"]] as [Tab, string][]).map(([t, label]) => (
             <button key={t} onClick={() => setTab(t)} className={`rounded-lg px-3 py-1.5 text-sm ${tab === t ? "bg-accent text-ink-950 font-semibold" : "text-slate-400 hover:bg-ink-800"}`}>{label}</button>
           ))}
         </div>
@@ -78,6 +80,7 @@ export default function AdminPage() {
           <>
             {tab === "patterns" && <PatternsAdmin onChange={refresh} />}
             {tab === "wordbook" && <WordbookAdmin onChange={refresh} />}
+            {tab === "patternvocab" && <PatternVocabAdmin />}
           </>
         )}
       </main>
@@ -247,3 +250,32 @@ function WordbookAdmin({ onChange }: { onChange: () => void }) {
   );
 }
 
+
+// ─────────── 句型詞庫(pattern_vocab)對應 ───────────
+function PatternVocabAdmin() {
+  return (
+    <div className="space-y-4">
+      <div className="card p-4">
+        <div className="text-sm font-semibold text-slate-300">句型詞庫 (pattern_vocab) · 共 {patternVocabTotal()} 字</div>
+        <p className="mt-1 text-xs text-slate-500">
+          由「AI 一次性分類詞本」產生(分類 + 中文)→ 存進 <code>pattern_vocab</code> 表。下表顯示每個句型的句框對應哪個分類,以及該分類目前在種子 / 句型詞庫各有幾個字。AI 分類待跑,跑完「句型詞庫」欄就會有數字。
+        </p>
+      </div>
+      {lessons.map((l) => (
+        <div key={l.id} className="card p-4">
+          <div className="mb-2 text-sm font-semibold text-accent">Unit {l.unit} · {l.patternText}</div>
+          <ul className="space-y-1.5">
+            {framesOf(l).map((f) => (
+              <li key={f.frame} className="flex flex-wrap items-center gap-2 text-sm">
+                <code className="min-w-0 flex-1 text-slate-200">{f.frame}</code>
+                <span className="chip bg-ink-700 text-slate-300">分類 {f.category}</span>
+                <span className="chip bg-ink-800 text-slate-500">種子 {vocabByCategory(f.category).length}</span>
+                <span className="chip bg-accent/15 text-accent">詞庫 {patternVocabCount(f.category)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+}

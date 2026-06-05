@@ -74,6 +74,19 @@ export async function initContent(): Promise<void> {
   } else {
     wbCache = cache.wordbooks;
   }
+  // 句型詞庫(AI 分類後的單字;晚點才跑)
+  pvCache = hasSupabase ? await selectAll<PatternVocab>("pattern_vocab") : [];
+}
+
+// ── 句型詞庫(pattern_vocab 表:word/native_zh/category;由 AI 分類詞本產生)──
+export type PatternVocab = { word: string; native_zh: string; category: string };
+let pvCache: PatternVocab[] | null = null;
+
+export function patternVocabCount(category: string): number {
+  return (pvCache ?? []).filter((r) => r.category === category).length;
+}
+export function patternVocabTotal(): number {
+  return (pvCache ?? []).length;
 }
 
 // ── 句框 ──
