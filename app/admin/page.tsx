@@ -57,7 +57,7 @@ export default function AdminPage() {
           <span className="grid h-8 w-8 place-items-center rounded-lg bg-gold text-sm font-black text-ink-950">⚙</span>
           <div className="leading-tight">
             <div className="text-sm font-bold">後台 · 內容管理</div>
-            <div className="text-[11px] text-slate-500">Admin (資料目前存 localStorage，待接資料庫)</div>
+            <div className="text-[11px] text-slate-500">Admin · {hasSupabase ? "已連 Supabase 資料庫 ☁️" : "資料存 localStorage(未連資料庫)"}</div>
           </div>
           <Link href="/" className="btn-ghost ml-auto px-3 py-1.5 text-xs">← 回前台</Link>
         </div>
