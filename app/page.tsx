@@ -8,13 +8,18 @@ import {
   getLesson,
   buildSession,
   framesOf,
+  frameDisplay,
   availableModes,
   subFrameCount,
+  transformFrames,
   transformExample,
-  transformOpCount,
   drillTypeZh,
+  PERSON_ORDER,
+  TRANSFORM_OPS,
+  opLabel,
   type DrillType,
   type Step,
+  type PKey,
 } from "@/lib/mock";
 import { initProgress, markMode, lessonProgress, recommendNextLessonId, type ProgressMap } from "@/lib/progress";
 import { initContent } from "@/lib/content";
@@ -60,6 +65,7 @@ export default function TrainingPage() {
   const [drillType, setDrillType] = useState<DrillType>("Substitution");
   const [selectedOp, setSelectedOp] = useState<string | undefined>(undefined);
   const [selectedFrame, setSelectedFrame] = useState<string | undefined>(undefined);
+  const [selectedPerson, setSelectedPerson] = useState<PKey>("I");
   const [steps, setSteps] = useState<Step[]>([]);
   const [idx, setIdx] = useState(0);
   const [phase, setPhase] = useState<RunPhase>("cue");
@@ -366,10 +372,10 @@ export default function TrainingPage() {
     setSelectedId(id);
     setMode("select");
   }
-  async function startSession(type: DrillType, opKey?: string, frameKey?: string) {
+  async function startSession(type: DrillType, opKey?: string, frameKey?: string, person?: PKey) {
     setSelectedOp(opKey);
     setSelectedFrame(frameKey);
-    const s = buildSession(getLesson(selectedId), type, opKey, frameKey);
+    const s = buildSession(getLesson(selectedId), type, opKey, frameKey, person);
     stepsRef.current = s;
     timesRef.current = [];
     setSteps(s);
@@ -513,7 +519,7 @@ export default function TrainingPage() {
             <button key={f.frame} onClick={() => startSession("Substitution", f.frame)} className="card flex w-full items-center gap-3 p-4 text-left transition hover:border-accent/50">
               <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent/15 text-sm font-bold text-accent">{i + 1}</span>
               <div className="min-w-0 flex-1">
-                <code className="text-base font-semibold text-slate-100">{f.frame}</code>
+                <code className="text-base font-semibold text-slate-100">{frameDisplay(f)}</code>
               </div>
               <span className="chip shrink-0 bg-ink-700 text-slate-300">{subFrameCount(f)} 發</span>
             </button>
@@ -533,11 +539,11 @@ export default function TrainingPage() {
           <h1 className="text-xl font-bold text-slate-100">先選要變換哪個句框</h1>
         </div>
         <div className="space-y-3">
-          {framesOf(lesson).map((f, i) => (
+          {transformFrames(lesson).map((f, i) => (
             <button key={f.frame} onClick={() => { setSelectedFrame(f.frame); setMode("selectOp"); }} className="card flex w-full items-center gap-3 p-4 text-left transition hover:border-accent/50">
               <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent/15 text-sm font-bold text-accent">{i + 1}</span>
               <div className="min-w-0 flex-1">
-                <code className="text-base font-semibold text-slate-100">{f.frame}</code>
+                <code className="text-base font-semibold text-slate-100">{frameDisplay(f)}</code>
               </div>
               <span className="chip shrink-0 bg-ink-700 text-slate-300">{subFrameCount(f)} 句</span>
             </button>
@@ -547,26 +553,37 @@ export default function TrainingPage() {
     );
   }
 
-  // ─────────── SELECT 轉換操作（第二層之二）───────────
+  // ─────────── SELECT 人稱 + 轉換操作（第二層之二）───────────
   if (mode === "selectOp") {
-    const frameText = selectedFrame ?? framesOf(lesson)[0]?.frame;
+    const fr = transformFrames(lesson);
+    const fObj = fr.find((f) => f.frame === selectedFrame) ?? fr[0];
     return (
       <Shell>
         <button onClick={() => setMode("selectTransFrame")} className="mb-4 text-sm text-slate-500 hover:text-slate-300">← 返回</button>
         <div className="mb-5">
-          <div className="text-xs text-slate-500">轉換 · <code className="text-slate-300">{frameText}</code></div>
-          <h1 className="text-xl font-bold text-slate-100">選一種變換操作</h1>
+          <div className="text-xs text-slate-500">轉換 · <code className="text-slate-300">{fObj ? frameDisplay(fObj) : ""}</code></div>
+          <h1 className="text-xl font-bold text-slate-100">選人稱 + 變換操作</h1>
         </div>
+        {/* 人稱 */}
+        <div className="mb-4">
+          <div className="mb-2 text-xs text-slate-500">人稱(主詞)</div>
+          <div className="flex flex-wrap gap-2">
+            {PERSON_ORDER.map((p) => (
+              <button key={p} onClick={() => setSelectedPerson(p)} className={`chip ${selectedPerson === p ? "bg-accent text-ink-950" : "bg-ink-800 text-slate-300"}`}>{p}</button>
+            ))}
+          </div>
+        </div>
+        {/* 操作 */}
         <div className="space-y-3">
-          {lesson.transformation.map((o) => {
-            const ex = transformExample(lesson, o, selectedFrame);
+          {TRANSFORM_OPS.map((op) => {
+            const ex = transformExample(lesson, op, selectedFrame, selectedPerson);
             return (
-              <button key={o.op} onClick={() => startSession("Transformation", o.op, selectedFrame)} className="card flex w-full items-center gap-3 p-4 text-left transition hover:border-accent/50">
+              <button key={op} onClick={() => startSession("Transformation", op, selectedFrame, selectedPerson)} className="card flex w-full items-center gap-3 p-4 text-left transition hover:border-accent/50">
                 <div className="min-w-0 flex-1">
-                  <div className="text-base font-semibold text-slate-100">{o.instruction}</div>
-                  <div className="text-xs text-slate-500">例：{ex.cue} → {ex.answer}</div>
+                  <div className="text-base font-semibold text-slate-100">{opLabel[op]}</div>
+                  <div className="text-xs text-slate-500">例：{ex.answer}</div>
                 </div>
-                <span className="chip shrink-0 bg-ink-700 text-slate-300">{transformOpCount(lesson, selectedFrame)} 發</span>
+                <span className="chip shrink-0 bg-ink-700 text-slate-300">{subFrameCount(fObj!)} 發</span>
               </button>
             );
           })}
@@ -595,7 +612,7 @@ export default function TrainingPage() {
             <div className="rounded-xl border border-ink-700 bg-ink-900/40 p-3"><div className="text-2xl font-black text-slate-100">{mm}:{ss}</div><div className="text-xs text-slate-500">用時</div></div>
           </div>
           <div className="mx-auto mt-6 flex max-w-sm gap-2">
-            <button onClick={() => startSession(drillType, selectedOp, selectedFrame)} className="btn-ghost flex-1">再練一次</button>
+            <button onClick={() => startSession(drillType, selectedOp, selectedFrame, selectedPerson)} className="btn-ghost flex-1">再練一次</button>
             <button onClick={() => setMode("select")} className="btn-primary flex-1">換個模式</button>
           </div>
         </div>

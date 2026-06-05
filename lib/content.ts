@@ -153,7 +153,11 @@ export async function seedToDb(): Promise<string> {
   const cycles = seedContent.learningPath.map((c) => ({ cycle: c.cycle, title: c.title, clb: c.clb }));
   const ce = await upsertRows("cycles", cycles, "cycle"); if (ce) return "週期上傳失敗:" + ce;
   const units = seedContent.learningPath.flatMap((c) =>
-    c.units.map((u) => ({ unit: u.unit, cycle: c.cycle, goal: u.goal, focus: u.focus, pattern: u.pattern, lesson_id: u.lessonId ?? null })),
+    c.units.map((u) => ({
+      unit: u.unit, cycle: c.cycle, goal: u.goal, focus: u.focus, pattern: u.pattern,
+      // 以 lessons(已有 30 課)對應 unit;確保每個單元都連到課程
+      lesson_id: seedContent.lessons.find((l) => l.unit === u.unit)?.id ?? u.lessonId ?? null,
+    })),
   );
   const ue = await upsertRows("units", units, "unit"); if (ue) return "單元上傳失敗:" + ue;
   const prows: Record<string, unknown>[] = [];

@@ -16,7 +16,12 @@ export const drillTypeZh: Record<DrillType, string> = {
 export type Rep = { cue: string; answer: string; nativeZh?: string };
 
 // 替換：漸進句框（結構固定，變數從單字庫依分類抓取）
-export type SubFrame = { frame: string; frameZh: string; category: string };
+// conj:人稱變位組。有 conj 的句框會展開不同人稱(I/You/He/She/We/They)。
+//  "be" / "be_q"(疑問) / "@verb"(變數本身是動詞,第三人稱加 s) / 其他=固定動詞原形(如 have/need/go/will…)
+export type SubFrame = { frame: string; frameZh: string; category: string; conj?: string; ger?: boolean };
+export const TRANSFORM_OPS = ["past", "negative", "question", "future"] as const;
+export type TransformOpKey = (typeof TRANSFORM_OPS)[number];
+export const opLabel: Record<string, string> = { present: "現在", past: "過去式 (Past)", negative: "否定 (Negative)", question: "疑問 (Question)", future: "未來 (Will)" };
 // 轉換：直接拿「替換產生的整批句子」做字串轉換（每操作 = 替換句數，例如 20）
 export type TransformOp = {
   op: string;
@@ -406,301 +411,109 @@ export function isExtraFrame(lessonId: string, frame: string) {
 }
 
 // ── 句型課（示範 2 課）────────────────────────────────────────────
+function mk(id: string, unit: number, patternText: string, substitution: SubFrame[]): PatternLesson {
+  return { id, patternText, unit, substitution, transformation: [], expansion: [], response: [] };
+}
 export let lessons: PatternLesson[] = [
-  {
-    id: "L_am",
-    patternText: "I am ___.",
-    unit: 1,
-    substitution: [
-      { frame: "I am ___.", frameZh: "我很 ___。", category: "be_adj" },
-      { frame: "I am a ___.", frameZh: "我是 ___。", category: "be_role" },
-      { frame: "I am from ___.", frameZh: "我來自 ___。", category: "be_from" },
-      { frame: "I am at ___.", frameZh: "我在 ___。", category: "be_at" },
-      { frame: "I am here ___.", frameZh: "我來這裡 ___。", category: "be_purpose" },
-    ],
-    transformation: [
-      { op: "past", instruction: "改成過去式 (→ Past)", enFrom: "I am", enTo: "I was", zhFrom: "我很", zhTo: "我（剛才）很" },
-      { op: "negative", instruction: "改成否定 (→ Negative)", enFrom: "I am", enTo: "I am not", zhFrom: "我很", zhTo: "我不" },
-      { op: "question", instruction: "改成疑問 (→ Question)", enFrom: "I am", enTo: "Are you", zhFrom: "我很", zhTo: "你", question: true },
-    ],
-    expansion: [
-      {
-        base: "I am tired.", baseZh: "我很累。", layers: [
-          { cue: "+ today", answer: "I am tired today.", nativeZh: "我今天很累。" },
-          { cue: "+ because I worked late", answer: "I am tired today because I worked late.", nativeZh: "我今天很累，因為我工作到很晚。" },
-        ]
-      },
-      {
-        base: "I am a student.", baseZh: "我是學生。", layers: [
-          { cue: "+ at the college", answer: "I am a student at the college.", nativeZh: "我是這所學院的學生。" },
-          { cue: "+ in my second year", answer: "I am a student at the college in my second year.", nativeZh: "我是這所學院二年級的學生。" },
-        ]
-      },
-      {
-        base: "I am from Taiwan.", baseZh: "我來自台灣。", layers: [
-          { cue: "+ originally", answer: "I am originally from Taiwan.", nativeZh: "我原本來自台灣。" },
-          { cue: "+ but I live here now", answer: "I am originally from Taiwan, but I live here now.", nativeZh: "我原本來自台灣，但現在住在這裡。" },
-        ]
-      },
-      {
-        base: "I am here to study.", baseZh: "我來這裡讀書。", layers: [
-          { cue: "+ English", answer: "I am here to study English.", nativeZh: "我來這裡學英文。" },
-          { cue: "+ for my career", answer: "I am here to study English for my career.", nativeZh: "我來這裡為了職涯學英文。" },
-        ]
-      },
-      {
-        base: "I am at work.", baseZh: "我在公司。", layers: [
-          { cue: "+ right now", answer: "I am at work right now.", nativeZh: "我現在在公司。" },
-          { cue: "+ until six", answer: "I am at work right now until six.", nativeZh: "我現在在公司，要到六點。" },
-        ]
-      },
-      {
-        base: "I am hungry.", baseZh: "我很餓。", layers: [
-          { cue: "+ a little", answer: "I am a little hungry.", nativeZh: "我有點餓。" },
-          { cue: "+ let's eat", answer: "I am a little hungry, let's eat.", nativeZh: "我有點餓，我們去吃吧。" },
-        ]
-      },
-    ],
-    response: [],
-  },
-  {
-    id: "L_looking_for",
-    patternText: "I am looking for ___.",
-    unit: 15,
-    substitution: [
-      { frame: "I am looking for ___.", frameZh: "我在找 ___。", category: "lf" },
-      { frame: "I am looking for a cheap ___.", frameZh: "我在找便宜的 ___。", category: "cheap_noun" },
-      { frame: "I am looking for a good ___.", frameZh: "我在找好的 ___。", category: "good_noun" },
-    ],
-    transformation: [
-      { op: "past", instruction: "改成過去式 (→ Past)", enFrom: "I am looking for", enTo: "I was looking for", zhFrom: "我在找", zhTo: "我（剛才）在找" },
-      { op: "negative", instruction: "改成否定 (→ Negative)", enFrom: "I am looking for", enTo: "I am not looking for", zhFrom: "我在找", zhTo: "我沒有在找" },
-      { op: "question", instruction: "改成疑問 (→ Question)", enFrom: "I am looking for", enTo: "Are you looking for", zhFrom: "我在找", zhTo: "你在找", question: true },
-    ],
-    expansion: [
-      {
-        base: "I am looking for an apartment.", baseZh: "我在找公寓。", layers: [
-          { cue: "+ downtown", answer: "I am looking for an apartment downtown.", nativeZh: "我在找市中心的公寓。" },
-          { cue: "+ near my office", answer: "I am looking for an apartment downtown near my office.", nativeZh: "我在找公司附近、市中心的公寓。" },
-        ]
-      },
-      {
-        base: "I am looking for a job.", baseZh: "我在找工作。", layers: [
-          { cue: "+ part-time", answer: "I am looking for a part-time job.", nativeZh: "我在找兼職工作。" },
-          { cue: "+ downtown", answer: "I am looking for a part-time job downtown.", nativeZh: "我在找市中心的兼職工作。" },
-        ]
-      },
-      {
-        base: "I am looking for a doctor.", baseZh: "我在找醫生。", layers: [
-          { cue: "+ a good", answer: "I am looking for a good doctor.", nativeZh: "我在找好醫生。" },
-          { cue: "+ near my home", answer: "I am looking for a good doctor near my home.", nativeZh: "我在找住家附近的好醫生。" },
-        ]
-      },
-      {
-        base: "I am looking for the bus station.", baseZh: "我在找公車站。", layers: [
-          { cue: "+ on this street", answer: "I am looking for the bus station on this street.", nativeZh: "我在找這條街上的公車站。" },
-        ]
-      },
-      {
-        base: "I am looking for help.", baseZh: "我在找人幫忙。", layers: [
-          { cue: "+ with my luggage", answer: "I am looking for help with my luggage.", nativeZh: "我在找人幫忙提行李。" },
-          { cue: "+ right now", answer: "I am looking for help with my luggage right now.", nativeZh: "我現在就在找人幫忙提行李。" },
-        ]
-      },
-      {
-        base: "I am looking for a pharmacy.", baseZh: "我在找藥局。", layers: [
-          { cue: "+ nearby", answer: "I am looking for a pharmacy nearby.", nativeZh: "我在找附近的藥局。" },
-          { cue: "+ that is open", answer: "I am looking for a pharmacy nearby that is open.", nativeZh: "我在找附近還開著的藥局。" },
-        ]
-      },
-    ],
-    response: [
-      { cue: "Why are you looking for an apartment?", answer: "Because my lease is ending soon.", nativeZh: "因為我的租約快到期了。" },
-      { cue: "What kind of apartment do you want?", answer: "I want a one-bedroom near downtown.", nativeZh: "我想要市中心附近的一房。" },
-      { cue: "How much can you pay?", answer: "I can pay around twelve hundred a month.", nativeZh: "我每個月大約能付一千二。" },
-    ],
-  },
-  {
-    id: "L_need",
-    patternText: "I need ___.",
-    unit: 6,
-    substitution: [
-      { frame: "I need ___.", frameZh: "我需要 ___。", category: "need_thing" },
-      { frame: "I need to find ___.", frameZh: "我需要找 ___。", category: "need_find" },
-      { frame: "I need to buy ___.", frameZh: "我需要買 ___。", category: "need_buy" },
-      { frame: "I need to go to ___.", frameZh: "我需要去 ___。", category: "need_go" },
-      { frame: "I need to call ___.", frameZh: "我需要打電話給 ___。", category: "need_call" },
-      { frame: "I need to see ___.", frameZh: "我需要看 ___。", category: "need_see" },
-    ],
-    transformation: [
-      { op: "past", instruction: "改成過去式 (→ Past)", enFrom: "I need", enTo: "I needed", zhFrom: "我需要", zhTo: "我（剛才）需要" },
-      { op: "negative", instruction: "改成否定 (→ Negative)", enFrom: "I need", enTo: "I don't need", zhFrom: "我需要", zhTo: "我不需要" },
-      { op: "question", instruction: "改成疑問 (→ Question)", enFrom: "I need", enTo: "Do you need", zhFrom: "我需要", zhTo: "你需要", question: true },
-    ],
-    expansion: [
-      {
-        base: "I need help.", baseZh: "我需要幫忙。", layers: [
-          { cue: "+ with this form", answer: "I need help with this form.", nativeZh: "我需要幫忙填這張表。" },
-          { cue: "+ please", answer: "I need help with this form, please.", nativeZh: "請幫我填一下這張表。" },
-        ]
-      },
-      {
-        base: "I need a doctor.", baseZh: "我需要醫生。", layers: [
-          { cue: "+ right now", answer: "I need a doctor right now.", nativeZh: "我現在就需要醫生。" },
-          { cue: "+ who speaks Chinese", answer: "I need a doctor who speaks Chinese right now.", nativeZh: "我現在需要一位會說中文的醫生。" },
-        ]
-      },
-      {
-        base: "I need a taxi.", baseZh: "我需要計程車。", layers: [
-          { cue: "+ to the airport", answer: "I need a taxi to the airport.", nativeZh: "我需要去機場的計程車。" },
-          { cue: "+ in ten minutes", answer: "I need a taxi to the airport in ten minutes.", nativeZh: "我需要十分鐘內到機場的計程車。" },
-        ]
-      },
-      {
-        base: "I need water.", baseZh: "我需要水。", layers: [
-          { cue: "+ please", answer: "I need water, please.", nativeZh: "請給我水。" },
-          { cue: "+ and a menu", answer: "I need water and a menu, please.", nativeZh: "請給我水和菜單。" },
-        ]
-      },
-      {
-        base: "I need more time.", baseZh: "我需要更多時間。", layers: [
-          { cue: "+ to finish", answer: "I need more time to finish.", nativeZh: "我需要更多時間完成。" },
-          { cue: "+ this report", answer: "I need more time to finish this report.", nativeZh: "我需要更多時間完成這份報告。" },
-        ]
-      },
-      {
-        base: "I need a receipt.", baseZh: "我需要收據。", layers: [
-          { cue: "+ for this", answer: "I need a receipt for this.", nativeZh: "我需要這個的收據。" },
-          { cue: "+ for my taxes", answer: "I need a receipt for this for my taxes.", nativeZh: "我需要這個的收據，報稅用。" },
-        ]
-      },
-    ],
-    response: [
-      { cue: "What do you need?", answer: "I need to see a doctor.", nativeZh: "我需要看醫生。" },
-      { cue: "Do you need anything else?", answer: "No, that's all, thank you.", nativeZh: "不用了，就這些，謝謝。" },
-    ],
-  },
-  // ── Unit 2 社交確認：Are you ___? ──
-  {
-    id: "L_are",
-    patternText: "Are you ___?",
-    unit: 2,
-    substitution: [
-      { frame: "Are you ___?", frameZh: "你 ___ 嗎？", category: "be_adj" },
-      { frame: "Are you a ___?", frameZh: "你是 ___ 嗎？", category: "be_role" },
-      { frame: "Are you from ___?", frameZh: "你來自 ___ 嗎？", category: "be_from" },
-    ],
-    transformation: [],
-    expansion: [
-      {
-        base: "Are you ready?", baseZh: "你準備好了嗎？", layers: [
-          { cue: "+ to go", answer: "Are you ready to go?", nativeZh: "你準備好要走了嗎？" },
-          { cue: "+ now", answer: "Are you ready to go now?", nativeZh: "你現在準備好要走了嗎？" },
-        ]
-      },
-      {
-        base: "Are you a student?", baseZh: "你是學生嗎？", layers: [
-          { cue: "+ here", answer: "Are you a student here?", nativeZh: "你是這裡的學生嗎？" },
-        ]
-      },
-      {
-        base: "Are you free?", baseZh: "你有空嗎？", layers: [
-          { cue: "+ tonight", answer: "Are you free tonight?", nativeZh: "你今晚有空嗎？" },
-          { cue: "+ for dinner", answer: "Are you free tonight for dinner?", nativeZh: "你今晚有空吃晚餐嗎？" },
-        ]
-      },
-    ],
-    response: [],
-  },
-  // ── Unit 3 空間定位：Where is ___? ──
-  {
-    id: "L_where",
-    patternText: "Where is ___?",
-    unit: 3,
-    substitution: [
-      { frame: "Where is ___?", frameZh: "___ 在哪裡？", category: "place" },
-      { frame: "I can't find ___.", frameZh: "我找不到 ___。", category: "place" },
-    ],
-    transformation: [],
-    expansion: [
-      {
-        base: "Where is the washroom?", baseZh: "洗手間在哪裡？", layers: [
-          { cue: "+ please", answer: "Where is the washroom, please?", nativeZh: "請問洗手間在哪裡？" },
-        ]
-      },
-      {
-        base: "Where is the station?", baseZh: "車站在哪裡？", layers: [
-          { cue: "+ nearest", answer: "Where is the nearest station?", nativeZh: "最近的車站在哪裡？" },
-        ]
-      },
-      {
-        base: "I can't find the exit.", baseZh: "我找不到出口。", layers: [
-          { cue: "+ can you help", answer: "I can't find the exit. Can you help me?", nativeZh: "我找不到出口，可以幫我嗎？" },
-        ]
-      },
-    ],
-    response: [],
-  },
-  // ── Unit 4 數量感知：I have ___. ──
-  {
-    id: "L_have",
-    patternText: "I have ___.",
-    unit: 4,
-    substitution: [
-      { frame: "I have ___.", frameZh: "我有 ___。", category: "need_buy" },
-      { frame: "I don't have ___.", frameZh: "我沒有 ___。", category: "need_buy" },
-      { frame: "Do you have ___?", frameZh: "你有 ___ 嗎？", category: "need_buy" },
-    ],
-    transformation: [],
-    expansion: [
-      {
-        base: "I have a ticket.", baseZh: "我有票。", layers: [
-          { cue: "+ for tonight", answer: "I have a ticket for tonight.", nativeZh: "我有今晚的票。" },
-        ]
-      },
-      {
-        base: "I don't have a charger.", baseZh: "我沒有充電器。", layers: [
-          { cue: "+ with me", answer: "I don't have a charger with me.", nativeZh: "我身上沒帶充電器。" },
-        ]
-      },
-      {
-        base: "Do you have water?", baseZh: "你有水嗎？", layers: [
-          { cue: "+ cold", answer: "Do you have cold water?", nativeZh: "你有冰水嗎？" },
-        ]
-      },
-    ],
-    response: [],
-  },
-  // ── Unit 5 所屬關係：This is my ___. ──
-  {
-    id: "L_my",
-    patternText: "This is my ___.",
-    unit: 5,
-    substitution: [
-      { frame: "This is my ___.", frameZh: "這是我的 ___。", category: "my_things" },
-      { frame: "Where is my ___?", frameZh: "我的 ___ 在哪裡？", category: "my_things" },
-      { frame: "I lost my ___.", frameZh: "我弄丟了我的 ___。", category: "my_things" },
-    ],
-    transformation: [],
-    expansion: [
-      {
-        base: "This is my passport.", baseZh: "這是我的護照。", layers: [
-          { cue: "+ and my visa", answer: "This is my passport and my visa.", nativeZh: "這是我的護照和簽證。" },
-        ]
-      },
-      {
-        base: "Where is my phone?", baseZh: "我的手機在哪裡？", layers: [
-          { cue: "+ I just had it", answer: "Where is my phone? I just had it.", nativeZh: "我的手機在哪裡？我剛剛還拿著。" },
-        ]
-      },
-      {
-        base: "I lost my wallet.", baseZh: "我弄丟了錢包。", layers: [
-          { cue: "+ on the bus", answer: "I lost my wallet on the bus.", nativeZh: "我把錢包掉在公車上了。" },
-        ]
-      },
-    ],
-    response: [],
-  },
+  mk("L_am",1,"I am ___.",[
+    {frame:"{S} {v} ___.",frameZh:"{Sz}很 ___。",category:"describe",conj:"be"},
+    {frame:"{S} {v} a ___.",frameZh:"{Sz}是 ___。",category:"person",conj:"be"},
+    {frame:"{S} {v} at the ___.",frameZh:"{Sz}在 ___。",category:"place",conj:"be"},
+  ]),
+  mk("L_are",2,"Are you ___?",[
+    {frame:"{S} {v} ___.",frameZh:"{Sz}很 ___。",category:"describe",conj:"be"},
+    {frame:"{S} {v} ___.",frameZh:"{Sz}覺得 ___。",category:"feeling",conj:"be"},
+  ]),
+  mk("L_where",3,"Where is ___?",[
+    {frame:"Where is the ___?",frameZh:"___ 在哪裡?",category:"place"},
+    {frame:"Where is my ___?",frameZh:"我的 ___ 在哪?",category:"object"},
+  ]),
+  mk("L_have",4,"I have ___.",[
+    {frame:"{S} {v} a ___.",frameZh:"{Sz}有 ___。",category:"object",conj:"have"},
+    {frame:"{S} {v} some ___.",frameZh:"{Sz}有一些 ___。",category:"food",conj:"have"},
+  ]),
+  mk("L_my",5,"This is my ___.",[
+    {frame:"This is my ___.",frameZh:"這是我的 ___。",category:"object"},
+    {frame:"This is my ___.",frameZh:"這是我的 ___。",category:"person"},
+  ]),
+  mk("L_need",6,"I need ___.",[
+    {frame:"{S} {v} a ___.",frameZh:"{Sz}需要 ___。",category:"object",conj:"need"},
+    {frame:"{S} {v} to ___.",frameZh:"{Sz}需要 ___。",category:"action",conj:"need"},
+  ]),
+  mk("L_u7",7,"I ___ every day.",[
+    {frame:"{S} ___ every day.",frameZh:"{Sz}每天 ___。",category:"action",conj:"@verb"},
+    {frame:"{S} ___ at home.",frameZh:"{Sz}在家 ___。",category:"action",conj:"@verb"},
+  ]),
+  mk("L_u8",8,"Could you ___?",[
+    {frame:"{S} {v} ___.",frameZh:"{Sz}可以 ___。",category:"action",conj:"could"},
+  ]),
+  mk("L_u9",9,"I don't ___.",[
+    {frame:"{S} ___ it.",frameZh:"{Sz} ___ 它。",category:"action",conj:"@verb"},
+  ]),
+  mk("L_u10",10,"Yesterday I ___ed.",[
+    {frame:"{S} ___ it.",frameZh:"{Sz} ___ 它。",category:"action",conj:"@verb"},
+  ]),
+  mk("L_u11",11,"I will ___.",[
+    {frame:"{S} {v} ___.",frameZh:"{Sz}會 ___。",category:"action",conj:"will"},
+  ]),
+  mk("L_u12",12,"It is very ___.",[
+    {frame:"{S} {v} very ___.",frameZh:"{Sz}很 ___。",category:"describe",conj:"be"},
+  ]),
+  mk("L_u13",13,"___ because ___.",[
+    {frame:"{S} {v} ___.",frameZh:"{Sz}覺得 ___。",category:"feeling",conj:"be"},
+  ]),
+  mk("L_u14",14,"I always ___.",[
+    {frame:"{S} ___ often.",frameZh:"{Sz}常常 ___。",category:"action",conj:"@verb"},
+  ]),
+  mk("L_looking_for",15,"I am looking for ___.",[
+    {frame:"{S} {v} looking for a ___.",frameZh:"{Sz}在找 ___。",category:"object",conj:"be"},
+    {frame:"{S} {v} looking for the ___.",frameZh:"{Sz}在找 ___。",category:"place",conj:"be"},
+  ]),
+  mk("L_u16",16,"I go by ___.",[
+    {frame:"{S} {v} by ___.",frameZh:"{Sz}搭 ___。",category:"transport",conj:"go"},
+  ]),
+  mk("L_u17",17,"___ is better than ___.",[
+    {frame:"A car is better than a ___.",frameZh:"車比 ___ 好。",category:"transport"},
+  ]),
+  mk("L_u18",18,"I should ___.",[
+    {frame:"{S} {v} ___.",frameZh:"{Sz}應該 ___。",category:"action",conj:"should"},
+  ]),
+  mk("L_u19",19,"Can I ___?",[
+    {frame:"{S} {v} ___.",frameZh:"{Sz}可以 ___。",category:"action",conj:"can"},
+  ]),
+  mk("L_u20",20,"It looks ___.",[
+    {frame:"{S} {v} ___.",frameZh:"{Sz}看起來 ___。",category:"describe",conj:"look"},
+  ]),
+  mk("L_u21",21,"I have ___ed.",[
+    {frame:"{S} {v} a ___.",frameZh:"{Sz}有 ___。",category:"object",conj:"have"},
+  ]),
+  mk("L_u22",22,"If I were you, I would ___.",[
+    {frame:"{S} {v} ___.",frameZh:"{Sz}會 ___。",category:"action",conj:"would"},
+  ]),
+  mk("L_u23",23,"It was ___ed.",[
+    {frame:"{S} {v} ___.",frameZh:"{Sz}很 ___。",category:"describe",conj:"be"},
+  ]),
+  mk("L_u24",24,"The one that ___.",[
+    {frame:"{S} {v} ___.",frameZh:"{Sz}是 ___ 的。",category:"describe",conj:"be"},
+  ]),
+  mk("L_u25",25,"I had ___ed before.",[
+    {frame:"{S} ___ it.",frameZh:"{Sz} ___ 它。",category:"action",conj:"@verb"},
+  ]),
+  mk("L_u26",26,"I did it myself.",[
+    {frame:"{S} ___ it.",frameZh:"{Sz} ___ 它。",category:"action",conj:"@verb"},
+  ]),
+  mk("L_u27",27,"I enjoy ___ing.",[
+    {frame:"{S} {v} ___.",frameZh:"{Sz}喜歡 ___。",category:"action",conj:"enjoy",ger:true},
+  ]),
+  mk("L_u28",28,"Let's ___ together.",[
+    {frame:"Let's ___ together.",frameZh:"一起 ___ 吧。",category:"action"},
+  ]),
+  mk("L_u29",29,"On the other hand, ___.",[
+    {frame:"{S} {v} ___.",frameZh:"另一方面,{Sz}很 ___。",category:"describe",conj:"be"},
+  ]),
+  mk("L_u30",30,"First ___, then ___.",[
+    {frame:"{S} ___ first.",frameZh:"{Sz}先 ___。",category:"action",conj:"@verb"},
+  ]),
 ];
 
 export function getLesson(id: string) {
@@ -720,118 +533,160 @@ export type Step = {
 
 export const SUBSTITUTION_TARGET = 20; // 替換正常 20 發（湊不齊則用現有）
 
-// key：替換時指定句框(frame)、轉換時指定操作(op)；frameKey：轉換時指定要變換哪個句框
-export function buildSession(lesson: PatternLesson, type: DrillType, key?: string, frameKey?: string): Step[] {
+// ── 變位引擎(6 人稱 × 時態/極性/句式)──
+export const PERSON_ORDER = ["I", "you", "he", "she", "we", "they"] as const;
+export type PKey = (typeof PERSON_ORDER)[number];
+type Op = "present" | "past" | "negative" | "question" | "future";
+const SUBJ: Record<PKey, { en: string; zh: string }> = {
+  I: { en: "I", zh: "我" }, you: { en: "You", zh: "你" }, he: { en: "He", zh: "他" },
+  she: { en: "She", zh: "她" }, we: { en: "We", zh: "我們" }, they: { en: "They", zh: "他們" },
+};
+const BE: Record<PKey, string> = { I: "am", you: "are", he: "is", she: "is", we: "are", they: "are" };
+const MODALS = new Set(["will", "would", "shall", "should", "can", "could", "may", "might", "must"]);
+const MODAL_NEG: Record<string, string> = { will: "won't", would: "wouldn't", can: "can't", could: "couldn't", should: "shouldn't", may: "may not", might: "might not", must: "mustn't", shall: "shan't" };
+const MODAL_PAST: Record<string, string> = { will: "would", can: "could", may: "might", shall: "should" };
+const IRREG3: Record<string, string> = { have: "has", go: "goes", do: "does", be: "is" };
+const IRREGPAST: Record<string, string> = {
+  be: "was", have: "had", go: "went", do: "did", make: "made", take: "took", get: "got", see: "saw",
+  come: "came", say: "said", know: "knew", give: "gave", find: "found", think: "thought", buy: "bought",
+  bring: "brought", eat: "ate", drink: "drank", run: "ran", read: "read", write: "wrote", drive: "drove",
+  pay: "paid", meet: "met", sit: "sat", stand: "stood", lose: "lost", feel: "felt", leave: "left",
+  keep: "kept", send: "sent", spend: "spent", build: "built", teach: "taught", catch: "caught",
+  sleep: "slept", win: "won", begin: "began", become: "became", hold: "held", speak: "spoke", wear: "wore", choose: "chose",
+};
+function cap(s: string) { return s.charAt(0).toUpperCase() + s.slice(1); }
+function third(v: string): string {
+  if (IRREG3[v]) return IRREG3[v];
+  if (/(s|x|z|ch|sh)$/.test(v)) return v + "es";
+  if (/[^aeiou]y$/.test(v)) return v.slice(0, -1) + "ies";
+  return v + "s";
+}
+function pastForm(v: string): string {
+  if (IRREGPAST[v]) return IRREGPAST[v];
+  if (/e$/.test(v)) return v + "d";
+  if (/[^aeiou]y$/.test(v)) return v.slice(0, -1) + "ied";
+  return v + "ed";
+}
+function gerund(v: string): string {
+  if (/[^aeiou]e$/.test(v)) return v.slice(0, -1) + "ing";
+  return v + "ing";
+}
+// 取得句框的 動詞base + 變數後綴(tail)
+function frameParts(f: SubFrame, wordEn: string): { base: string; tail: string } {
+  if (f.conj === "@verb") {
+    const i = f.frame.indexOf("___");
+    return { base: wordEn, tail: f.frame.slice(i + 3) };
+  }
+  const after = f.frame.split("{v}")[1] ?? " ___.";
+  const wp = f.ger ? gerund(wordEn) : wordEn;
+  return { base: f.conj ?? "be", tail: after.replace("___", wp) };
+}
+// 核心:把句框渲染成 (人稱, op) 的句子
+function renderSentence(f: SubFrame, p: PKey, wordEn: string, wordZh: string, op: Op): { en: string; native: string } {
+  const s = SUBJ[p];
+  const subjCap = p === "I" ? "I" : s.en;
+  const subjLow = p === "I" ? "I" : s.en.toLowerCase();
+  const is3 = p === "he" || p === "she";
+  const Q = op === "question";
+  const { base, tail } = frameParts(f, wordEn);
+  const isBe = base === "be";
+  const isModal = MODALS.has(base);
+  let en = "";
+  if (isBe) {
+    const pres = BE[p];
+    const past = p === "you" || p === "we" || p === "they" ? "were" : "was";
+    if (op === "present") en = Q ? `${cap(pres)} ${subjLow}${tail}` : `${subjCap} ${pres}${tail}`;
+    else if (op === "past") en = Q ? `${cap(past)} ${subjLow}${tail}` : `${subjCap} ${past}${tail}`;
+    else if (op === "future") en = Q ? `Will ${subjLow} be${tail}` : `${subjCap} will be${tail}`;
+    else en = `${subjCap} ${pres} not${tail}`;
+  } else if (isModal) {
+    if (op === "past") { const mp = MODAL_PAST[base] ?? base; en = Q ? `${cap(mp)} ${subjLow}${tail}` : `${subjCap} ${mp}${tail}`; }
+    else if (op === "negative") en = `${subjCap} ${MODAL_NEG[base] ?? base + " not"}${tail}`;
+    else en = Q ? `${cap(base)} ${subjLow}${tail}` : `${subjCap} ${base}${tail}`; // present / future
+  } else {
+    if (op === "present") en = Q ? `${is3 ? "Does" : "Do"} ${subjLow} ${base}${tail}` : `${subjCap} ${is3 ? third(base) : base}${tail}`;
+    else if (op === "past") en = Q ? `Did ${subjLow} ${base}${tail}` : `${subjCap} ${pastForm(base)}${tail}`;
+    else if (op === "future") en = Q ? `Will ${subjLow} ${base}${tail}` : `${subjCap} will ${base}${tail}`;
+    else en = `${subjCap} ${is3 ? "doesn't" : "don't"} ${base}${tail}`;
+  }
+  if (Q) en = en.replace(/\.$/, "?");
+  let native = f.frameZh.replace("{Sz}", s.zh).replace("___", wordZh);
+  if (op === "question") native = native.replace(/。$/, "嗎?");
+  else if (op === "negative") native = "(否定) " + native;
+  else if (op === "past") native = "(過去) " + native;
+  else if (op === "future") native = "(將) " + native;
+  return { en: en.trim(), native };
+}
+// 顯示用(I 人稱、保留 ___)；無 conj 的句框直接顯示原文
+export function frameDisplay(f: SubFrame): string {
+  return f.conj ? renderSentence(f, "I", "___", "___", "present").en : f.frame;
+}
+
+// key：替換時指定句框(frame)、轉換時指定操作(op)；frameKey：轉換指定句框；person：轉換指定人稱
+export function buildSession(lesson: PatternLesson, type: DrillType, key?: string, frameKey?: string, person?: PKey): Step[] {
   if (type === "Substitution") {
     const all = framesOf(lesson);
     const frames = key ? all.filter((f) => f.frame === key) : all;
     const steps: Step[] = [];
     for (const f of frames) {
-      for (const w of vocabByCategory(f.category)) {
-        steps.push({
-          type,
-          cue: w.word,
-          answer: f.frame.replace("___", w.word),
-          nativeZh: f.frameZh.replace("___", w.nativeZh),
-          groupKey: f.frame,
-          groupTitle: f.frame,
-          // 不播 groupSpeak：句框含 ___，避免 TTS 唸出「underscore」
-        });
-      }
+      const words = vocabByCategory(f.category);
+      words.forEach((w, i) => {
+        if (f.conj) {
+          // 輪流換人稱(20 發看到各人稱視角)
+          const p: PKey = PERSON_ORDER[i % PERSON_ORDER.length];
+          const r = renderSentence(f, p, w.word, w.nativeZh, "present");
+          steps.push({ type, cue: w.word, answer: r.en, nativeZh: r.native, groupKey: f.frame, groupTitle: frameDisplay(f) });
+        } else {
+          steps.push({ type, cue: w.word, answer: f.frame.replace("___", w.word), nativeZh: f.frameZh.replace("___", w.nativeZh), groupKey: f.frame, groupTitle: f.frame });
+        }
+      });
     }
     return key ? steps : steps.slice(0, SUBSTITUTION_TARGET);
   }
   if (type === "Transformation") {
-    // 轉換用「最原始的句框」(substitution[0]) 的句子來變換
-    const bases = transformBases(lesson, frameKey);
-    const ops = key ? lesson.transformation.filter((o) => o.op === key) : lesson.transformation;
-    const steps: Step[] = [];
-    for (const o of ops) {
-      for (const b of bases) {
-        steps.push({ type, ...applyTransform(o, b.answer, b.nativeZh), groupKey: o.op, groupTitle: o.instruction });
-      }
-    }
-    return steps;
-  }
-  if (type === "Expansion") {
-    // 每次抽 5 條，下次換另外 5 條（輪替）。每條 = 基句(過場) + 逐層加長。
-    const chains = pickExpansionChains(lesson.expansion);
-    const steps: Step[] = [];
-    for (const c of chains) {
-      for (const l of c.layers) {
-        steps.push({ type, cue: l.cue, answer: l.answer, nativeZh: l.nativeZh, groupKey: c.base, groupTitle: c.base, groupSpeak: c.base });
-      }
-    }
-    return steps;
+    const fr = framesOf(lesson).filter((f) => f.conj);
+    const f = fr.find((x) => x.frame === frameKey) ?? fr[0];
+    if (!f) return [];
+    const p: PKey = person ?? "I";
+    const op = (key ?? "past") as Op;
+    const steps = vocabByCategory(f.category).map((w) => {
+      const r = renderSentence(f, p, w.word, w.nativeZh, op);
+      return { type, cue: w.word, answer: r.en, nativeZh: r.native, groupKey: op, groupTitle: `${opLabel[op]} · ${SUBJ[p].en}` };
+    });
+    return steps.slice(0, SUBSTITUTION_TARGET);
   }
   return lesson.response.map((r) => ({ type, cue: r.cue, answer: r.answer, nativeZh: r.nativeZh }));
 }
 
-// 轉換的基準句：依指定句框(frameKey)，否則 transformFrame，否則 substitution[0]
-function transformBases(lesson: PatternLesson, frameKey?: string): { answer: string; nativeZh: string }[] {
-  const fr = framesOf(lesson);
-  const f =
-    fr.find((s) => s.frame === frameKey) ??
-    fr.find((s) => s.frame === lesson.transformFrame) ??
-    fr[0];
-  if (!f) return [];
-  return vocabByCategory(f.category).map((w) => ({
-    answer: f.frame.replace("___", w.word),
-    nativeZh: f.frameZh.replace("___", w.nativeZh),
-  }));
-}
-
-// 套用一個轉換操作到一句（英 + 中錨點）
-function applyTransform(o: TransformOp, en: string, zh: string) {
-  let cue = en;
-  let answer = en.replace(o.enFrom, o.enTo);
-  let nativeZh = zh.replace(o.zhFrom, o.zhTo);
-  if (o.question) {
-    answer = answer.replace(/\.$/, "?");
-    nativeZh = nativeZh.replace(/。$/, "嗎？");
-  }
-  return { cue, answer, nativeZh };
-}
-
-export const EXPANSION_PICK = 5; // 每次抽 5 條
-let expansionOffset = 0; // 輪替起點，下次換另外 5 條
-function pickExpansionChains(chains: ExpChain[]): ExpChain[] {
-  const n = chains.length;
-  if (n === 0) return [];
-  const out: ExpChain[] = [];
-  for (let i = 0; i < Math.min(EXPANSION_PICK, n); i++) out.push(chains[(expansionOffset + i) % n]);
-  expansionOffset = (expansionOffset + EXPANSION_PICK) % n;
-  return out;
-}
-
 export function modeCount(lesson: PatternLesson, type: DrillType) {
-  if (type === "Transformation") return transformBases(lesson).length * lesson.transformation.length;
   return buildSession(lesson, type).length;
 }
 
-// 一課實際有內容的模式（情境反應已關閉，不計入）
+// 一課實際有內容的模式（替換 + 轉換；轉換需有可變位的句框）
 export function availableModes(lesson: PatternLesson): DrillType[] {
   const m: DrillType[] = [];
-  if (lesson.substitution.length) m.push("Substitution");
-  if (lesson.transformation.length) m.push("Transformation");
-  // 擴展(Expansion)與情境反應(Response)先關閉
+  if (framesOf(lesson).length) m.push("Substitution");
+  if (framesOf(lesson).some((f) => f.conj)) m.push("Transformation");
   return m;
 }
 
 // 替換句框的發數（供第二層選單顯示）
 export function subFrameCount(f: SubFrame) {
-  return vocabByCategory(f.category).length;
+  return Math.min(vocabByCategory(f.category).length, SUBSTITUTION_TARGET);
 }
 
-// 轉換操作的發數與示範（供選單顯示）— 可指定句框
-export function transformOpCount(lesson: PatternLesson, frameKey?: string) {
-  return transformBases(lesson, frameKey).length;
+// 轉換的可變位句框(供選單)
+export function transformFrames(lesson: PatternLesson): SubFrame[] {
+  return framesOf(lesson).filter((f) => f.conj);
 }
-export function transformExample(lesson: PatternLesson, op: TransformOp, frameKey?: string) {
-  const base = transformBases(lesson, frameKey)[0];
-  if (!base) return { cue: "", answer: "" };
-  const r = applyTransform(op, base.answer, base.nativeZh);
-  return { cue: r.cue, answer: r.answer };
+// 轉換某句框+人稱+操作的示範
+export function transformExample(lesson: PatternLesson, op: TransformOpKey, frameKey?: string, person: PKey = "I") {
+  const fr = transformFrames(lesson);
+  const f = fr.find((x) => x.frame === frameKey) ?? fr[0];
+  const w = f ? vocabByCategory(f.category)[0] : undefined;
+  if (!f || !w) return { cue: "", answer: "" };
+  const r = renderSentence(f, person, w.word, w.nativeZh, op);
+  return { cue: w.word, answer: r.en };
 }
 
 // ── 學習路徑：FSI 30 單元語言地圖（三週期）──────────────────────
