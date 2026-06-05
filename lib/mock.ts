@@ -18,7 +18,8 @@ export type Rep = { cue: string; answer: string; nativeZh?: string };
 // 替換：漸進句框（結構固定，變數從單字庫依分類抓取）
 // conj:人稱變位組。有 conj 的句框會展開不同人稱(I/You/He/She/We/They)。
 //  "be" / "be_q"(疑問) / "@verb"(變數本身是動詞,第三人稱加 s) / 其他=固定動詞原形(如 have/need/go/will…)
-export type SubFrame = { frame: string; frameZh: string; category: string; conj?: string; ger?: boolean };
+// op:此句框替換時用哪種句式(預設 present);subj:固定主詞(如 "it",不輪替人稱)
+export type SubFrame = { frame: string; frameZh: string; category: string; conj?: string; ger?: boolean; op?: "present" | "past" | "negative" | "question" | "future"; subj?: "I" | "you" | "he" | "she" | "we" | "they" | "it" };
 export const TRANSFORM_OPS = ["past", "negative", "question", "future"] as const;
 export type TransformOpKey = (typeof TRANSFORM_OPS)[number];
 export const opLabel: Record<string, string> = { present: "現在", past: "過去式 (Past)", negative: "否定 (Negative)", question: "疑問 (Question)", future: "未來 (Will)" };
@@ -421,8 +422,8 @@ export let lessons: PatternLesson[] = [
     {frame:"{S} {v} at the ___.",frameZh:"{Sz}在 ___。",category:"place",conj:"be"},
   ]),
   mk("L_are",2,"Are you ___?",[
-    {frame:"{S} {v} ___.",frameZh:"{Sz}很 ___。",category:"describe",conj:"be"},
-    {frame:"{S} {v} ___.",frameZh:"{Sz}覺得 ___。",category:"feeling",conj:"be"},
+    {frame:"{S} {v} ___.",frameZh:"{Sz}很 ___。",category:"describe",conj:"be",op:"question"},
+    {frame:"{S} {v} ___.",frameZh:"{Sz}覺得 ___。",category:"feeling",conj:"be",op:"question"},
   ]),
   mk("L_where",3,"Where is ___?",[
     {frame:"Where is the ___?",frameZh:"___ 在哪裡?",category:"place"},
@@ -445,25 +446,26 @@ export let lessons: PatternLesson[] = [
     {frame:"{S} ___ at home.",frameZh:"{Sz}在家 ___。",category:"action",conj:"@verb"},
   ]),
   mk("L_u8",8,"Could you ___?",[
-    {frame:"{S} {v} ___.",frameZh:"{Sz}可以 ___。",category:"action",conj:"could"},
+    {frame:"{S} {v} ___.",frameZh:"{Sz}可以 ___。",category:"action",conj:"could",op:"question"},
   ]),
   mk("L_u9",9,"I don't ___.",[
-    {frame:"{S} ___ it.",frameZh:"{Sz} ___ 它。",category:"action",conj:"@verb"},
+    {frame:"{S} ___ it.",frameZh:"{Sz} ___ 它。",category:"action",conj:"@verb",op:"negative"},
   ]),
   mk("L_u10",10,"Yesterday I ___ed.",[
-    {frame:"{S} ___ it.",frameZh:"{Sz} ___ 它。",category:"action",conj:"@verb"},
+    {frame:"{S} ___ yesterday.",frameZh:"{Sz}昨天 ___。",category:"action",conj:"@verb",op:"past"},
   ]),
   mk("L_u11",11,"I will ___.",[
     {frame:"{S} {v} ___.",frameZh:"{Sz}會 ___。",category:"action",conj:"will"},
   ]),
   mk("L_u12",12,"It is very ___.",[
-    {frame:"{S} {v} very ___.",frameZh:"{Sz}很 ___。",category:"describe",conj:"be"},
+    {frame:"{S} {v} very ___.",frameZh:"{Sz}很 ___。",category:"describe",conj:"be",subj:"it"},
   ]),
   mk("L_u13",13,"___ because ___.",[
-    {frame:"{S} {v} ___.",frameZh:"{Sz}覺得 ___。",category:"feeling",conj:"be"},
+    {frame:"{S} {v} ___ because of work.",frameZh:"{Sz}因為工作而 ___。",category:"feeling",conj:"be"},
+    {frame:"{S} {v} happy because of my ___.",frameZh:"{Sz}因為我的 ___ 而開心。",category:"object",conj:"be"},
   ]),
   mk("L_u14",14,"I always ___.",[
-    {frame:"{S} ___ often.",frameZh:"{Sz}常常 ___。",category:"action",conj:"@verb"},
+    {frame:"{S} always ___.",frameZh:"{Sz}總是 ___。",category:"action",conj:"@verb"},
   ]),
   mk("L_looking_for",15,"I am looking for ___.",[
     {frame:"{S} {v} looking for a ___.",frameZh:"{Sz}在找 ___。",category:"object",conj:"be"},
@@ -473,34 +475,35 @@ export let lessons: PatternLesson[] = [
     {frame:"{S} {v} by ___.",frameZh:"{Sz}搭 ___。",category:"transport",conj:"go"},
   ]),
   mk("L_u17",17,"___ is better than ___.",[
+    {frame:"Coffee is better than ___.",frameZh:"咖啡比 ___ 好。",category:"food"},
     {frame:"A car is better than a ___.",frameZh:"車比 ___ 好。",category:"transport"},
   ]),
   mk("L_u18",18,"I should ___.",[
     {frame:"{S} {v} ___.",frameZh:"{Sz}應該 ___。",category:"action",conj:"should"},
   ]),
   mk("L_u19",19,"Can I ___?",[
-    {frame:"{S} {v} ___.",frameZh:"{Sz}可以 ___。",category:"action",conj:"can"},
+    {frame:"{S} {v} ___.",frameZh:"{Sz}可以 ___。",category:"action",conj:"can",op:"question"},
   ]),
   mk("L_u20",20,"It looks ___.",[
-    {frame:"{S} {v} ___.",frameZh:"{Sz}看起來 ___。",category:"describe",conj:"look"},
+    {frame:"{S} {v} ___.",frameZh:"{Sz}看起來 ___。",category:"describe",conj:"look",subj:"it"},
   ]),
   mk("L_u21",21,"I have ___ed.",[
-    {frame:"{S} {v} a ___.",frameZh:"{Sz}有 ___。",category:"object",conj:"have"},
+    {frame:"{S} ___ it.",frameZh:"{Sz}已經 ___ 它了。",category:"action",conj:"@perfect"},
   ]),
   mk("L_u22",22,"If I were you, I would ___.",[
-    {frame:"{S} {v} ___.",frameZh:"{Sz}會 ___。",category:"action",conj:"would"},
+    {frame:"If I were you, I would ___.",frameZh:"如果我是你,我會 ___。",category:"action"},
   ]),
   mk("L_u23",23,"It was ___ed.",[
-    {frame:"{S} {v} ___.",frameZh:"{Sz}很 ___。",category:"describe",conj:"be"},
+    {frame:"{S} ___.",frameZh:"{Sz}被 ___。",category:"action",conj:"@passive",subj:"it",op:"past"},
   ]),
   mk("L_u24",24,"The one that ___.",[
-    {frame:"{S} {v} ___.",frameZh:"{Sz}是 ___ 的。",category:"describe",conj:"be"},
+    {frame:"I want the one that is ___.",frameZh:"我要 ___ 的那個。",category:"describe"},
   ]),
   mk("L_u25",25,"I had ___ed before.",[
-    {frame:"{S} ___ it.",frameZh:"{Sz} ___ 它。",category:"action",conj:"@verb"},
+    {frame:"{S} ___ before.",frameZh:"{Sz}先前已 ___。",category:"action",conj:"@perfect",op:"past"},
   ]),
   mk("L_u26",26,"I did it myself.",[
-    {frame:"{S} ___ it.",frameZh:"{Sz} ___ 它。",category:"action",conj:"@verb"},
+    {frame:"I ___ it myself.",frameZh:"我自己 ___ 它。",category:"action"},
   ]),
   mk("L_u27",27,"I enjoy ___ing.",[
     {frame:"{S} {v} ___.",frameZh:"{Sz}喜歡 ___。",category:"action",conj:"enjoy",ger:true},
@@ -509,10 +512,10 @@ export let lessons: PatternLesson[] = [
     {frame:"Let's ___ together.",frameZh:"一起 ___ 吧。",category:"action"},
   ]),
   mk("L_u29",29,"On the other hand, ___.",[
-    {frame:"{S} {v} ___.",frameZh:"另一方面,{Sz}很 ___。",category:"describe",conj:"be"},
+    {frame:"On the other hand, it is ___.",frameZh:"另一方面,它很 ___。",category:"describe"},
   ]),
   mk("L_u30",30,"First ___, then ___.",[
-    {frame:"{S} ___ first.",frameZh:"{Sz}先 ___。",category:"action",conj:"@verb"},
+    {frame:"First I ___, then I leave.",frameZh:"我先 ___,然後離開。",category:"action"},
   ]),
 ];
 
@@ -535,13 +538,13 @@ export const SUBSTITUTION_TARGET = 20; // 替換正常 20 發（湊不齊則用�
 
 // ── 變位引擎(6 人稱 × 時態/極性/句式)──
 export const PERSON_ORDER = ["I", "you", "he", "she", "we", "they"] as const;
-export type PKey = (typeof PERSON_ORDER)[number];
+export type PKey = "I" | "you" | "he" | "she" | "we" | "they" | "it";
 type Op = "present" | "past" | "negative" | "question" | "future";
 const SUBJ: Record<PKey, { en: string; zh: string }> = {
   I: { en: "I", zh: "我" }, you: { en: "You", zh: "你" }, he: { en: "He", zh: "他" },
-  she: { en: "She", zh: "她" }, we: { en: "We", zh: "我們" }, they: { en: "They", zh: "他們" },
+  she: { en: "She", zh: "她" }, we: { en: "We", zh: "我們" }, they: { en: "They", zh: "他們" }, it: { en: "It", zh: "它" },
 };
-const BE: Record<PKey, string> = { I: "am", you: "are", he: "is", she: "is", we: "are", they: "are" };
+const BE: Record<PKey, string> = { I: "am", you: "are", he: "is", she: "is", we: "are", they: "are", it: "is" };
 const MODALS = new Set(["will", "would", "shall", "should", "can", "could", "may", "might", "must"]);
 const MODAL_NEG: Record<string, string> = { will: "won't", would: "wouldn't", can: "can't", could: "couldn't", should: "shouldn't", may: "may not", might: "might not", must: "mustn't", shall: "shan't" };
 const MODAL_PAST: Record<string, string> = { will: "would", can: "could", may: "might", shall: "should" };
@@ -572,42 +575,62 @@ function gerund(v: string): string {
   return v + "ing";
 }
 // 取得句框的 動詞base + 變數後綴(tail)
-function frameParts(f: SubFrame, wordEn: string): { base: string; tail: string } {
-  if (f.conj === "@verb") {
+type Kind = "be" | "modal" | "verb" | "perfect" | "passive";
+function frameParts(f: SubFrame, wordEn: string): { kind: Kind; base: string; pre: string; tail: string } {
+  if (f.conj === "@verb" || f.conj === "@perfect" || f.conj === "@passive") {
     const i = f.frame.indexOf("___");
-    return { base: wordEn, tail: f.frame.slice(i + 3) };
+    const pre = f.frame.slice(0, i).replace("{S}", "").trimStart(); // 動詞前的副詞,如 "always "
+    const tail = f.frame.slice(i + 3);
+    const kind: Kind = f.conj === "@perfect" ? "perfect" : f.conj === "@passive" ? "passive" : "verb";
+    return { kind, base: wordEn, pre, tail };
   }
   const after = f.frame.split("{v}")[1] ?? " ___.";
   const wp = f.ger ? gerund(wordEn) : wordEn;
-  return { base: f.conj ?? "be", tail: after.replace("___", wp) };
+  const base = f.conj ?? "be";
+  const kind: Kind = base === "be" ? "be" : MODALS.has(base) ? "modal" : "verb";
+  return { kind, base, pre: "", tail: after.replace("___", wp) };
 }
 // 核心:把句框渲染成 (人稱, op) 的句子
 function renderSentence(f: SubFrame, p: PKey, wordEn: string, wordZh: string, op: Op): { en: string; native: string } {
   const s = SUBJ[p];
   const subjCap = p === "I" ? "I" : s.en;
   const subjLow = p === "I" ? "I" : s.en.toLowerCase();
-  const is3 = p === "he" || p === "she";
+  const is3 = p === "he" || p === "she" || p === "it";
   const Q = op === "question";
-  const { base, tail } = frameParts(f, wordEn);
-  const isBe = base === "be";
-  const isModal = MODALS.has(base);
+  const { kind, base, pre, tail } = frameParts(f, wordEn);
+  const P = pre; // 前置副詞(可空)
   let en = "";
-  if (isBe) {
+  if (kind === "be") {
     const pres = BE[p];
     const past = p === "you" || p === "we" || p === "they" ? "were" : "was";
     if (op === "present") en = Q ? `${cap(pres)} ${subjLow}${tail}` : `${subjCap} ${pres}${tail}`;
     else if (op === "past") en = Q ? `${cap(past)} ${subjLow}${tail}` : `${subjCap} ${past}${tail}`;
     else if (op === "future") en = Q ? `Will ${subjLow} be${tail}` : `${subjCap} will be${tail}`;
     else en = `${subjCap} ${pres} not${tail}`;
-  } else if (isModal) {
+  } else if (kind === "passive") {
+    const pp = pastForm(base);
+    const pres = BE[p];
+    const past = p === "you" || p === "we" || p === "they" ? "were" : "was";
+    if (op === "present") en = Q ? `${cap(pres)} ${subjLow} ${pp}${tail}` : `${subjCap} ${pres} ${pp}${tail}`;
+    else if (op === "past") en = Q ? `${cap(past)} ${subjLow} ${pp}${tail}` : `${subjCap} ${past} ${pp}${tail}`;
+    else if (op === "future") en = Q ? `Will ${subjLow} be ${pp}${tail}` : `${subjCap} will be ${pp}${tail}`;
+    else en = `${subjCap} ${pres} not ${pp}${tail}`;
+  } else if (kind === "perfect") {
+    const pp = pastForm(base);
+    const hv = is3 ? "has" : "have";
+    if (op === "present") en = Q ? `${cap(hv)} ${subjLow} ${pp}${tail}` : `${subjCap} ${hv} ${pp}${tail}`;
+    else if (op === "past") en = Q ? `Had ${subjLow} ${pp}${tail}` : `${subjCap} had ${pp}${tail}`;
+    else if (op === "future") en = Q ? `Will ${subjLow} have ${pp}${tail}` : `${subjCap} will have ${pp}${tail}`;
+    else en = `${subjCap} ${is3 ? "hasn't" : "haven't"} ${pp}${tail}`;
+  } else if (kind === "modal") {
     if (op === "past") { const mp = MODAL_PAST[base] ?? base; en = Q ? `${cap(mp)} ${subjLow}${tail}` : `${subjCap} ${mp}${tail}`; }
     else if (op === "negative") en = `${subjCap} ${MODAL_NEG[base] ?? base + " not"}${tail}`;
-    else en = Q ? `${cap(base)} ${subjLow}${tail}` : `${subjCap} ${base}${tail}`; // present / future
+    else en = Q ? `${cap(base)} ${subjLow}${tail}` : `${subjCap} ${base}${tail}`;
   } else {
-    if (op === "present") en = Q ? `${is3 ? "Does" : "Do"} ${subjLow} ${base}${tail}` : `${subjCap} ${is3 ? third(base) : base}${tail}`;
-    else if (op === "past") en = Q ? `Did ${subjLow} ${base}${tail}` : `${subjCap} ${pastForm(base)}${tail}`;
-    else if (op === "future") en = Q ? `Will ${subjLow} ${base}${tail}` : `${subjCap} will ${base}${tail}`;
-    else en = `${subjCap} ${is3 ? "doesn't" : "don't"} ${base}${tail}`;
+    if (op === "present") en = Q ? `${is3 ? "Does" : "Do"} ${subjLow} ${P}${base}${tail}` : `${subjCap} ${P}${is3 ? third(base) : base}${tail}`;
+    else if (op === "past") en = Q ? `Did ${subjLow} ${P}${base}${tail}` : `${subjCap} ${P}${pastForm(base)}${tail}`;
+    else if (op === "future") en = Q ? `Will ${subjLow} ${P}${base}${tail}` : `${subjCap} ${P}will ${base}${tail}`;
+    else en = `${subjCap} ${P}${is3 ? "doesn't" : "don't"} ${base}${tail}`;
   }
   if (Q) en = en.replace(/\.$/, "?");
   let native = f.frameZh.replace("{Sz}", s.zh).replace("___", wordZh);
@@ -617,9 +640,9 @@ function renderSentence(f: SubFrame, p: PKey, wordEn: string, wordZh: string, op
   else if (op === "future") native = "(將) " + native;
   return { en: en.trim(), native };
 }
-// 顯示用(I 人稱、保留 ___)；無 conj 的句框直接顯示原文
+// 顯示用(依句框的 subj/op;保留 ___);無 conj 的句框直接顯示原文
 export function frameDisplay(f: SubFrame): string {
-  return f.conj ? renderSentence(f, "I", "___", "___", "present").en : f.frame;
+  return f.conj ? renderSentence(f, f.subj ?? "I", "___", "___", f.op ?? "present").en : f.frame;
 }
 
 // key：替換時指定句框(frame)、轉換時指定操作(op)；frameKey：轉換指定句框；person：轉換指定人稱
@@ -632,9 +655,9 @@ export function buildSession(lesson: PatternLesson, type: DrillType, key?: strin
       const words = vocabByCategory(f.category);
       words.forEach((w, i) => {
         if (f.conj) {
-          // 指定人稱→全用該人稱;否則輪流(20 發看到各人稱視角)
-          const p: PKey = person && person !== "all" ? person : PERSON_ORDER[i % PERSON_ORDER.length];
-          const r = renderSentence(f, p, w.word, w.nativeZh, "present");
+          // 固定主詞(subj)優先;否則指定人稱→全用;再否則輪流
+          const p: PKey = f.subj ?? (person && person !== "all" ? person : PERSON_ORDER[i % PERSON_ORDER.length]);
+          const r = renderSentence(f, p, w.word, w.nativeZh, f.op ?? "present");
           steps.push({ type, cue: w.word, answer: r.en, nativeZh: r.native, groupKey: f.frame, groupTitle: frameDisplay(f) });
         } else {
           steps.push({ type, cue: w.word, answer: f.frame.replace("___", w.word), nativeZh: f.frameZh.replace("___", w.nativeZh), groupKey: f.frame, groupTitle: f.frame });
@@ -647,7 +670,7 @@ export function buildSession(lesson: PatternLesson, type: DrillType, key?: strin
     const fr = framesOf(lesson).filter((f) => f.conj);
     const f = fr.find((x) => x.frame === frameKey) ?? fr[0];
     if (!f) return [];
-    const p: PKey = person && person !== "all" ? person : "I";
+    const p: PKey = f.subj ?? (person && person !== "all" ? person : "I");
     const op = (key ?? "past") as Op;
     const steps = vocabByCategory(f.category).map((w) => {
       const r = renderSentence(f, p, w.word, w.nativeZh, op);
@@ -685,7 +708,7 @@ export function transformExample(lesson: PatternLesson, op: TransformOpKey, fram
   const f = fr.find((x) => x.frame === frameKey) ?? fr[0];
   const w = f ? vocabByCategory(f.category)[0] : undefined;
   if (!f || !w) return { cue: "", answer: "" };
-  const r = renderSentence(f, person === "all" ? "I" : person, w.word, w.nativeZh, op);
+  const r = renderSentence(f, f.subj ?? (person === "all" ? "I" : person), w.word, w.nativeZh, op);
   return { cue: w.word, answer: r.en };
 }
 

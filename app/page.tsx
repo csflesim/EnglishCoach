@@ -517,7 +517,7 @@ export default function TrainingPage() {
         </div>
         <div className="space-y-3">
           {framesOf(lesson).map((f, i) => (
-            <button key={f.frame} onClick={() => { setSelectedFrame(f.frame); if (f.conj) setMode("selectSubPerson"); else startSession("Substitution", f.frame); }} className="card flex w-full items-center gap-3 p-4 text-left transition hover:border-accent/50">
+            <button key={f.frame} onClick={() => { setSelectedFrame(f.frame); if (f.conj && !f.subj) setMode("selectSubPerson"); else startSession("Substitution", f.frame); }} className="card flex w-full items-center gap-3 p-4 text-left transition hover:border-accent/50">
               <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent/15 text-sm font-bold text-accent">{i + 1}</span>
               <div className="min-w-0 flex-1">
                 <code className="text-base font-semibold text-slate-100">{frameDisplay(f)}</code>
@@ -592,15 +592,17 @@ export default function TrainingPage() {
           <div className="text-xs text-slate-500">轉換 · <code className="text-slate-300">{fObj ? frameDisplay(fObj) : ""}</code></div>
           <h1 className="text-xl font-bold text-slate-100">選人稱 + 變換操作</h1>
         </div>
-        {/* 人稱 */}
-        <div className="mb-4">
-          <div className="mb-2 text-xs text-slate-500">人稱(主詞)</div>
-          <div className="flex flex-wrap gap-2">
-            {PERSON_ORDER.map((p) => (
-              <button key={p} onClick={() => setSelectedPerson(p)} className={`chip ${selectedPerson === p ? "bg-accent text-ink-950" : "bg-ink-800 text-slate-300"}`}>{p}</button>
-            ))}
+        {/* 人稱(固定主詞的句框不需選) */}
+        {!fObj?.subj && (
+          <div className="mb-4">
+            <div className="mb-2 text-xs text-slate-500">人稱(主詞)</div>
+            <div className="flex flex-wrap gap-2">
+              {PERSON_ORDER.map((p) => (
+                <button key={p} onClick={() => setSelectedPerson(p)} className={`chip ${selectedPerson === p ? "bg-accent text-ink-950" : "bg-ink-800 text-slate-300"}`}>{p}</button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
         {/* 操作 */}
         <div className="space-y-3">
           {TRANSFORM_OPS.map((op) => {
