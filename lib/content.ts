@@ -22,7 +22,7 @@ import { hasSupabase, selectAll, selectIn, upsertRows, deleteWhere, countContain
 type CycleRow = { cycle: number; title: string; clb: string };
 type UnitRow = { unit: number; cycle: number; goal: string; focus: string; pattern: string; lesson_id: string | null };
 type PatternRow = { id: string; unit: number; type: string; transform_frame: string | null; drills: unknown };
-type VocabRow = { id: number; word: string; native_zh: string; categories: string[] };
+type VocabRow = { id: number; word: string; native_zh: string; categories: string[]; pos: string | null; slots: string[] | null; difficulty: number | null };
 
 export type Wordbook = { name: string; label: string | null };
 let wbCatalog: Wordbook[] = [];
@@ -59,7 +59,7 @@ export async function initContent(): Promise<void> {
   // vocabulary:每個分類展開成一筆(只收有分類的,供替換抓字)
   if (vocab.length) {
     const vb: VocabWord[] = [];
-    for (const r of vocab) for (const c of r.categories ?? []) vb.push({ word: r.word, nativeZh: r.native_zh, category: c });
+    for (const r of vocab) for (const c of r.categories ?? []) vb.push({ word: r.word, nativeZh: r.native_zh, category: c, pos: r.pos ?? undefined, slots: r.slots ?? undefined, difficulty: r.difficulty ?? undefined });
     setVocabBank(vb);
   }
 

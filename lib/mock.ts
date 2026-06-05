@@ -19,7 +19,7 @@ export type Rep = { cue: string; answer: string; nativeZh?: string };
 // conj:人稱變位組。有 conj 的句框會展開不同人稱(I/You/He/She/We/They)。
 //  "be" / "be_q"(疑問) / "@verb"(變數本身是動詞,第三人稱加 s) / 其他=固定動詞原形(如 have/need/go/will…)
 // op:此句框替換時用哪種句式(預設 present);subj:固定主詞(如 "it",不輪替人稱)
-export type SubFrame = { frame: string; frameZh: string; category: string; conj?: string; ger?: boolean; op?: "present" | "past" | "negative" | "question" | "future"; subj?: "I" | "you" | "he" | "she" | "we" | "they" | "it" };
+export type SubFrame = { frame: string; frameZh: string; category: string; conj?: string; ger?: boolean; op?: "present" | "past" | "negative" | "question" | "future"; subj?: "I" | "you" | "he" | "she" | "we" | "they" | "it"; pos?: string; slot?: string };
 export const TRANSFORM_OPS = ["past", "negative", "question", "future"] as const;
 export type TransformOpKey = (typeof TRANSFORM_OPS)[number];
 export const opLabel: Record<string, string> = { present: "現在", past: "過去式 (Past)", negative: "否定 (Negative)", question: "疑問 (Question)", future: "未來 (Will)" };
@@ -50,7 +50,7 @@ export type PatternLesson = {
 };
 
 // ── 單字庫（替換變數來源；帶分類 + 母語翻譯）──────────────────────
-export type VocabWord = { word: string; nativeZh: string; category: string };
+export type VocabWord = { word: string; nativeZh: string; category: string; pos?: string; slots?: string[]; difficulty?: number };
 
 export let vocabBank: VocabWord[] = [
   // need_thing —「I need ___.」
@@ -390,8 +390,12 @@ export let vocabBank: VocabWord[] = [
 // ── 執行期內容覆蓋層（後台新增的句框；由 content.ts 注入並存資料庫/localStorage）──
 const extraFrames: Record<string, SubFrame[]> = {};
 
-export function vocabByCategory(category: string) {
-  return vocabBank.filter((v) => v.category === category);
+// 依分類抓字;pos 過濾(A)、slot 文法槽過濾(B,有資料才生效)、難易由易到難
+export function vocabByCategory(category: string, pos?: string, slot?: string) {
+  let pool = vocabBank.filter((v) => v.category === category);
+  if (pos) pool = pool.filter((v) => !v.pos || v.pos === pos);
+  if (slot && pool.some((v) => v.slots && v.slots.length)) pool = pool.filter((v) => v.slots?.includes(slot));
+  return pool.slice().sort((a, b) => (a.difficulty ?? 9999) - (b.difficulty ?? 9999));
 }
 export function vocabCategories(): string[] {
   return Array.from(new Set(vocabBank.map((v) => v.category))).sort();
@@ -417,105 +421,105 @@ function mk(id: string, unit: number, patternText: string, substitution: SubFram
 }
 export let lessons: PatternLesson[] = [
   mk("L_am",1,"I am ___.",[
-    {frame:"{S} {v} ___.",frameZh:"{Sz}很 ___。",category:"describe",conj:"be"},
-    {frame:"{S} {v} a ___.",frameZh:"{Sz}是 ___。",category:"person",conj:"be"},
-    {frame:"{S} {v} at the ___.",frameZh:"{Sz}在 ___。",category:"place",conj:"be"},
+    {frame:"{S} {v} ___.",frameZh:"{Sz}很 ___。",category:"describe",conj:"be",pos:"adj",slot:"adj"},
+    {frame:"{S} {v} a ___.",frameZh:"{Sz}是 ___。",category:"person",conj:"be",pos:"n",slot:"role"},
+    {frame:"{S} {v} at the ___.",frameZh:"{Sz}在 ___。",category:"place",conj:"be",pos:"n",slot:"place"},
   ]),
   mk("L_are",2,"Are you ___?",[
-    {frame:"{S} {v} ___.",frameZh:"{Sz}很 ___。",category:"describe",conj:"be",op:"question"},
-    {frame:"{S} {v} ___.",frameZh:"{Sz}覺得 ___。",category:"feeling",conj:"be",op:"question"},
+    {frame:"{S} {v} ___.",frameZh:"{Sz}很 ___。",category:"describe",conj:"be",op:"question",pos:"adj",slot:"adj"},
+    {frame:"{S} {v} ___.",frameZh:"{Sz}覺得 ___。",category:"feeling",conj:"be",op:"question",pos:"adj",slot:"adj"},
   ]),
   mk("L_where",3,"Where is ___?",[
-    {frame:"Where is the ___?",frameZh:"___ 在哪裡?",category:"place"},
-    {frame:"Where is my ___?",frameZh:"我的 ___ 在哪?",category:"object"},
+    {frame:"Where is the ___?",frameZh:"___ 在哪裡?",category:"place",pos:"n",slot:"place"},
+    {frame:"Where is my ___?",frameZh:"我的 ___ 在哪?",category:"object",pos:"n",slot:"count"},
   ]),
   mk("L_have",4,"I have ___.",[
-    {frame:"{S} {v} a ___.",frameZh:"{Sz}有 ___。",category:"object",conj:"have"},
-    {frame:"{S} {v} some ___.",frameZh:"{Sz}有一些 ___。",category:"food",conj:"have"},
+    {frame:"{S} {v} a ___.",frameZh:"{Sz}有 ___。",category:"object",conj:"have",pos:"n",slot:"count"},
+    {frame:"{S} {v} some ___.",frameZh:"{Sz}有一些 ___。",category:"food",conj:"have",pos:"n",slot:"mass"},
   ]),
   mk("L_my",5,"This is my ___.",[
-    {frame:"This is my ___.",frameZh:"這是我的 ___。",category:"object"},
-    {frame:"This is my ___.",frameZh:"這是我的 ___。",category:"person"},
+    {frame:"This is my ___.",frameZh:"這是我的 ___。",category:"object",pos:"n",slot:"count"},
+    {frame:"This is my ___.",frameZh:"這是我的 ___。",category:"person",pos:"n",slot:"role"},
   ]),
   mk("L_need",6,"I need ___.",[
-    {frame:"{S} {v} a ___.",frameZh:"{Sz}需要 ___。",category:"object",conj:"need"},
-    {frame:"{S} {v} to ___.",frameZh:"{Sz}需要 ___。",category:"action",conj:"need"},
+    {frame:"{S} {v} a ___.",frameZh:"{Sz}需要 ___。",category:"object",conj:"need",pos:"n",slot:"count"},
+    {frame:"{S} {v} to ___.",frameZh:"{Sz}需要 ___。",category:"action",conj:"need",pos:"v",slot:"verb_intrans"},
   ]),
   mk("L_u7",7,"I ___ every day.",[
-    {frame:"{S} ___ every day.",frameZh:"{Sz}每天 ___。",category:"action",conj:"@verb"},
-    {frame:"{S} ___ at home.",frameZh:"{Sz}在家 ___。",category:"action",conj:"@verb"},
+    {frame:"{S} ___ every day.",frameZh:"{Sz}每天 ___。",category:"action",conj:"@verb",pos:"v",slot:"verb_intrans"},
+    {frame:"{S} ___ at home.",frameZh:"{Sz}在家 ___。",category:"action",conj:"@verb",pos:"v",slot:"verb_intrans"},
   ]),
   mk("L_u8",8,"Could you ___?",[
-    {frame:"{S} {v} ___.",frameZh:"{Sz}可以 ___。",category:"action",conj:"could",op:"question"},
+    {frame:"{S} {v} ___.",frameZh:"{Sz}可以 ___。",category:"action",conj:"could",op:"question",pos:"v",slot:"verb_intrans"},
   ]),
   mk("L_u9",9,"I don't ___.",[
-    {frame:"{S} ___ it.",frameZh:"{Sz} ___ 它。",category:"action",conj:"@verb",op:"negative"},
+    {frame:"{S} ___ it.",frameZh:"{Sz} ___ 它。",category:"action",conj:"@verb",op:"negative",pos:"v",slot:"verb_trans"},
   ]),
   mk("L_u10",10,"Yesterday I ___ed.",[
-    {frame:"{S} ___ yesterday.",frameZh:"{Sz}昨天 ___。",category:"action",conj:"@verb",op:"past"},
+    {frame:"{S} ___ yesterday.",frameZh:"{Sz}昨天 ___。",category:"action",conj:"@verb",op:"past",pos:"v",slot:"verb_intrans"},
   ]),
   mk("L_u11",11,"I will ___.",[
-    {frame:"{S} {v} ___.",frameZh:"{Sz}會 ___。",category:"action",conj:"will"},
+    {frame:"{S} {v} ___.",frameZh:"{Sz}會 ___。",category:"action",conj:"will",pos:"v",slot:"verb_intrans"},
   ]),
   mk("L_u12",12,"It is very ___.",[
-    {frame:"{S} {v} very ___.",frameZh:"{Sz}很 ___。",category:"describe",conj:"be",subj:"it"},
+    {frame:"{S} {v} very ___.",frameZh:"{Sz}很 ___。",category:"describe",conj:"be",subj:"it",pos:"adj",slot:"adj"},
   ]),
   mk("L_u13",13,"___ because ___.",[
-    {frame:"{S} {v} ___ because of work.",frameZh:"{Sz}因為工作而 ___。",category:"feeling",conj:"be"},
-    {frame:"{S} {v} happy because of my ___.",frameZh:"{Sz}因為我的 ___ 而開心。",category:"object",conj:"be"},
+    {frame:"{S} {v} ___ because of work.",frameZh:"{Sz}因為工作而 ___。",category:"feeling",conj:"be",pos:"adj",slot:"adj"},
+    {frame:"{S} {v} happy because of my ___.",frameZh:"{Sz}因為我的 ___ 而開心。",category:"object",conj:"be",pos:"n",slot:"count"},
   ]),
   mk("L_u14",14,"I always ___.",[
-    {frame:"{S} always ___.",frameZh:"{Sz}總是 ___。",category:"action",conj:"@verb"},
+    {frame:"{S} always ___.",frameZh:"{Sz}總是 ___。",category:"action",conj:"@verb",pos:"v",slot:"verb_intrans"},
   ]),
   mk("L_looking_for",15,"I am looking for ___.",[
-    {frame:"{S} {v} looking for a ___.",frameZh:"{Sz}在找 ___。",category:"object",conj:"be"},
-    {frame:"{S} {v} looking for the ___.",frameZh:"{Sz}在找 ___。",category:"place",conj:"be"},
+    {frame:"{S} {v} looking for a ___.",frameZh:"{Sz}在找 ___。",category:"object",conj:"be",pos:"n",slot:"count"},
+    {frame:"{S} {v} looking for the ___.",frameZh:"{Sz}在找 ___。",category:"place",conj:"be",pos:"n",slot:"place"},
   ]),
   mk("L_u16",16,"I go by ___.",[
-    {frame:"{S} {v} by ___.",frameZh:"{Sz}搭 ___。",category:"transport",conj:"go"},
+    {frame:"{S} {v} by ___.",frameZh:"{Sz}搭 ___。",category:"transport",conj:"go",pos:"n",slot:"transport"},
   ]),
   mk("L_u17",17,"___ is better than ___.",[
-    {frame:"Coffee is better than ___.",frameZh:"咖啡比 ___ 好。",category:"food"},
-    {frame:"A car is better than a ___.",frameZh:"車比 ___ 好。",category:"transport"},
+    {frame:"Coffee is better than ___.",frameZh:"咖啡比 ___ 好。",category:"food",pos:"n",slot:"mass"},
+    {frame:"A car is better than a ___.",frameZh:"車比 ___ 好。",category:"transport",pos:"n",slot:"transport"},
   ]),
   mk("L_u18",18,"I should ___.",[
-    {frame:"{S} {v} ___.",frameZh:"{Sz}應該 ___。",category:"action",conj:"should"},
+    {frame:"{S} {v} ___.",frameZh:"{Sz}應該 ___。",category:"action",conj:"should",pos:"v",slot:"verb_intrans"},
   ]),
   mk("L_u19",19,"Can I ___?",[
-    {frame:"{S} {v} ___.",frameZh:"{Sz}可以 ___。",category:"action",conj:"can",op:"question"},
+    {frame:"{S} {v} ___.",frameZh:"{Sz}可以 ___。",category:"action",conj:"can",op:"question",pos:"v",slot:"verb_intrans"},
   ]),
   mk("L_u20",20,"It looks ___.",[
-    {frame:"{S} {v} ___.",frameZh:"{Sz}看起來 ___。",category:"describe",conj:"look",subj:"it"},
+    {frame:"{S} {v} ___.",frameZh:"{Sz}看起來 ___。",category:"describe",conj:"look",subj:"it",pos:"adj",slot:"adj"},
   ]),
   mk("L_u21",21,"I have ___ed.",[
-    {frame:"{S} ___ it.",frameZh:"{Sz}已經 ___ 它了。",category:"action",conj:"@perfect"},
+    {frame:"{S} ___ it.",frameZh:"{Sz}已經 ___ 它了。",category:"action",conj:"@perfect",pos:"v",slot:"verb_trans"},
   ]),
   mk("L_u22",22,"If I were you, I would ___.",[
-    {frame:"If I were you, I would ___.",frameZh:"如果我是你,我會 ___。",category:"action"},
+    {frame:"If I were you, I would ___.",frameZh:"如果我是你,我會 ___。",category:"action",pos:"v",slot:"verb_intrans"},
   ]),
   mk("L_u23",23,"It was ___ed.",[
-    {frame:"{S} ___.",frameZh:"{Sz}被 ___。",category:"action",conj:"@passive",subj:"it",op:"past"},
+    {frame:"{S} ___.",frameZh:"{Sz}被 ___。",category:"action",conj:"@passive",op:"past",subj:"it",pos:"v",slot:"verb_trans"},
   ]),
   mk("L_u24",24,"The one that ___.",[
-    {frame:"I want the one that is ___.",frameZh:"我要 ___ 的那個。",category:"describe"},
+    {frame:"I want the one that is ___.",frameZh:"我要 ___ 的那個。",category:"describe",pos:"adj",slot:"adj"},
   ]),
   mk("L_u25",25,"I had ___ed before.",[
-    {frame:"{S} ___ before.",frameZh:"{Sz}先前已 ___。",category:"action",conj:"@perfect",op:"past"},
+    {frame:"{S} ___ before.",frameZh:"{Sz}先前已 ___。",category:"action",conj:"@perfect",op:"past",pos:"v",slot:"verb_intrans"},
   ]),
   mk("L_u26",26,"I did it myself.",[
-    {frame:"I ___ it myself.",frameZh:"我自己 ___ 它。",category:"action"},
+    {frame:"I ___ it myself.",frameZh:"我自己 ___ 它。",category:"action",pos:"v",slot:"verb_trans"},
   ]),
   mk("L_u27",27,"I enjoy ___ing.",[
-    {frame:"{S} {v} ___.",frameZh:"{Sz}喜歡 ___。",category:"action",conj:"enjoy",ger:true},
+    {frame:"{S} {v} ___.",frameZh:"{Sz}喜歡 ___。",category:"action",conj:"enjoy",ger:true,pos:"v",slot:"verb_intrans"},
   ]),
   mk("L_u28",28,"Let's ___ together.",[
-    {frame:"Let's ___ together.",frameZh:"一起 ___ 吧。",category:"action"},
+    {frame:"Let's ___ together.",frameZh:"一起 ___ 吧。",category:"action",pos:"v",slot:"verb_intrans"},
   ]),
   mk("L_u29",29,"On the other hand, ___.",[
-    {frame:"On the other hand, it is ___.",frameZh:"另一方面,它很 ___。",category:"describe"},
+    {frame:"On the other hand, it is ___.",frameZh:"另一方面,它很 ___。",category:"describe",pos:"adj",slot:"adj"},
   ]),
   mk("L_u30",30,"First ___, then ___.",[
-    {frame:"First I ___, then I leave.",frameZh:"我先 ___,然後離開。",category:"action"},
+    {frame:"First I ___, then I leave.",frameZh:"我先 ___,然後離開。",category:"action",pos:"v",slot:"verb_intrans"},
   ]),
 ];
 
@@ -652,7 +656,7 @@ export function buildSession(lesson: PatternLesson, type: DrillType, key?: strin
     const frames = key ? all.filter((f) => f.frame === key) : all;
     const steps: Step[] = [];
     for (const f of frames) {
-      const words = vocabByCategory(f.category);
+      const words = vocabByCategory(f.category, f.pos, f.slot);
       words.forEach((w, i) => {
         if (f.conj) {
           // 固定主詞(subj)優先;否則指定人稱→全用;再否則輪流
@@ -672,7 +676,7 @@ export function buildSession(lesson: PatternLesson, type: DrillType, key?: strin
     if (!f) return [];
     const p: PKey = f.subj ?? (person && person !== "all" ? person : "I");
     const op = (key ?? "past") as Op;
-    const steps = vocabByCategory(f.category).map((w) => {
+    const steps = vocabByCategory(f.category, f.pos, f.slot).map((w) => {
       const r = renderSentence(f, p, w.word, w.nativeZh, op);
       return { type, cue: w.word, answer: r.en, nativeZh: r.native, groupKey: op, groupTitle: `${opLabel[op]} · ${SUBJ[p].en}` };
     });
@@ -695,7 +699,7 @@ export function availableModes(lesson: PatternLesson): DrillType[] {
 
 // 替換句框的發數（供第二層選單顯示）
 export function subFrameCount(f: SubFrame) {
-  return Math.min(vocabByCategory(f.category).length, SUBSTITUTION_TARGET);
+  return Math.min(vocabByCategory(f.category, f.pos, f.slot).length, SUBSTITUTION_TARGET);
 }
 
 // 轉換的可變位句框(供選單)
@@ -706,7 +710,7 @@ export function transformFrames(lesson: PatternLesson): SubFrame[] {
 export function transformExample(lesson: PatternLesson, op: TransformOpKey, frameKey?: string, person: PKey | "all" = "I") {
   const fr = transformFrames(lesson);
   const f = fr.find((x) => x.frame === frameKey) ?? fr[0];
-  const w = f ? vocabByCategory(f.category)[0] : undefined;
+  const w = f ? vocabByCategory(f.category, f.pos, f.slot)[0] : undefined;
   if (!f || !w) return { cue: "", answer: "" };
   const r = renderSentence(f, f.subj ?? (person === "all" ? "I" : person), w.word, w.nativeZh, op);
   return { cue: w.word, answer: r.en };
