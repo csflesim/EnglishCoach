@@ -146,17 +146,6 @@ export async function seedToDb(): Promise<string> {
     if (l.response?.length) prows.push({ id: `${l.id}__response`, unit: l.unit, type: "response", transform_frame: null, drills: l.response });
   }
   const pe = await upsertRows("patterns", prows, "id"); if (pe) return "句型上傳失敗:" + pe;
-  const byWord = new Map<string, { word: string; native_zh: string; categories: string[] }>();
-  for (const v of seedContent.vocab) {
-    const e = byWord.get(v.word) ?? { word: v.word, native_zh: v.nativeZh, categories: [] };
-    if (!e.categories.includes(v.category)) e.categories.push(v.category);
-    byWord.set(v.word, e);
-  }
-  const ve = await upsertRows(
-    "vocabulary",
-    Array.from(byWord.values()).map((e) => ({ word: e.word, native_zh: e.native_zh, categories: e.categories, source: "seed" })),
-    "word",
-  );
-  if (ve) return "單字上傳失敗:" + ve;
-  return `✓ 已上傳 ${cycles.length} 週期、${units.length} 單元、${prows.length} 句型列、${byWord.size} 單字`;
+  // 單字不從種子上傳(改由詞本 + AI 分類產生);替換在 AI 分類前沿用程式種子。
+  return `✓ 已上傳 ${cycles.length} 週期、${units.length} 單元、${prows.length} 句型列(單字不上傳)`;
 }
