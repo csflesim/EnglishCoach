@@ -27,7 +27,7 @@ import { transcribe, evaluate, type EvalResult } from "@/lib/ai";
 import { logReview } from "@/lib/review";
 import { logSession } from "@/lib/practice";
 
-type Mode = "home" | "select" | "selectSub" | "selectTransFrame" | "selectOp" | "running" | "complete";
+type Mode = "home" | "select" | "selectSub" | "selectSubPerson" | "selectTransFrame" | "selectOp" | "running" | "complete";
 type RunPhase = "groupIntro" | "cue" | "listening" | "speaking" | "reveal";
 
 const SILENCE_MS = 900;
@@ -65,7 +65,7 @@ export default function TrainingPage() {
   const [drillType, setDrillType] = useState<DrillType>("Substitution");
   const [selectedOp, setSelectedOp] = useState<string | undefined>(undefined);
   const [selectedFrame, setSelectedFrame] = useState<string | undefined>(undefined);
-  const [selectedPerson, setSelectedPerson] = useState<PKey>("I");
+  const [selectedPerson, setSelectedPerson] = useState<PKey | "all">("I");
   const [steps, setSteps] = useState<Step[]>([]);
   const [idx, setIdx] = useState(0);
   const [phase, setPhase] = useState<RunPhase>("cue");
@@ -372,9 +372,10 @@ export default function TrainingPage() {
     setSelectedId(id);
     setMode("select");
   }
-  async function startSession(type: DrillType, opKey?: string, frameKey?: string, person?: PKey) {
+  async function startSession(type: DrillType, opKey?: string, frameKey?: string, person?: PKey | "all") {
     setSelectedOp(opKey);
     setSelectedFrame(frameKey);
+    if (person) setSelectedPerson(person);
     const s = buildSession(getLesson(selectedId), type, opKey, frameKey, person);
     stepsRef.current = s;
     timesRef.current = [];
@@ -516,7 +517,7 @@ export default function TrainingPage() {
         </div>
         <div className="space-y-3">
           {framesOf(lesson).map((f, i) => (
-            <button key={f.frame} onClick={() => startSession("Substitution", f.frame)} className="card flex w-full items-center gap-3 p-4 text-left transition hover:border-accent/50">
+            <button key={f.frame} onClick={() => { setSelectedFrame(f.frame); if (f.conj) setMode("selectSubPerson"); else startSession("Substitution", f.frame); }} className="card flex w-full items-center gap-3 p-4 text-left transition hover:border-accent/50">
               <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent/15 text-sm font-bold text-accent">{i + 1}</span>
               <div className="min-w-0 flex-1">
                 <code className="text-base font-semibold text-slate-100">{frameDisplay(f)}</code>
@@ -524,6 +525,33 @@ export default function TrainingPage() {
               <span className="chip shrink-0 bg-ink-700 text-slate-300">{subFrameCount(f)} 發</span>
             </button>
           ))}
+        </div>
+      </Shell>
+    );
+  }
+
+  // ─────────── SELECT 替換人稱（替換第三層）───────────
+  if (mode === "selectSubPerson") {
+    const fObj = framesOf(lesson).find((f) => f.frame === selectedFrame);
+    return (
+      <Shell>
+        <button onClick={() => setMode("selectSub")} className="mb-4 text-sm text-slate-500 hover:text-slate-300">← 返回</button>
+        <div className="mb-5">
+          <div className="text-xs text-slate-500">替換 · <code className="text-slate-300">{fObj ? frameDisplay(fObj) : ""}</code></div>
+          <h1 className="text-xl font-bold text-slate-100">選人稱(主詞)</h1>
+        </div>
+        <div className="space-y-3">
+          <button onClick={() => startSession("Substitution", selectedFrame, undefined, "all")} className="card flex w-full items-center gap-3 p-4 text-left transition hover:border-accent/50">
+            <div className="min-w-0 flex-1">
+              <div className="text-base font-semibold text-accent">全部輪流</div>
+              <div className="text-xs text-slate-500">20 發輪流 I / You / He / She / We / They</div>
+            </div>
+          </button>
+          <div className="grid grid-cols-3 gap-3">
+            {PERSON_ORDER.map((p) => (
+              <button key={p} onClick={() => startSession("Substitution", selectedFrame, undefined, p)} className="card p-4 text-center font-semibold text-slate-100 transition hover:border-accent/50">{p}</button>
+            ))}
+          </div>
         </div>
       </Shell>
     );

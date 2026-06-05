@@ -623,7 +623,7 @@ export function frameDisplay(f: SubFrame): string {
 }
 
 // key：替換時指定句框(frame)、轉換時指定操作(op)；frameKey：轉換指定句框；person：轉換指定人稱
-export function buildSession(lesson: PatternLesson, type: DrillType, key?: string, frameKey?: string, person?: PKey): Step[] {
+export function buildSession(lesson: PatternLesson, type: DrillType, key?: string, frameKey?: string, person?: PKey | "all"): Step[] {
   if (type === "Substitution") {
     const all = framesOf(lesson);
     const frames = key ? all.filter((f) => f.frame === key) : all;
@@ -632,8 +632,8 @@ export function buildSession(lesson: PatternLesson, type: DrillType, key?: strin
       const words = vocabByCategory(f.category);
       words.forEach((w, i) => {
         if (f.conj) {
-          // 輪流換人稱(20 發看到各人稱視角)
-          const p: PKey = PERSON_ORDER[i % PERSON_ORDER.length];
+          // 指定人稱→全用該人稱;否則輪流(20 發看到各人稱視角)
+          const p: PKey = person && person !== "all" ? person : PERSON_ORDER[i % PERSON_ORDER.length];
           const r = renderSentence(f, p, w.word, w.nativeZh, "present");
           steps.push({ type, cue: w.word, answer: r.en, nativeZh: r.native, groupKey: f.frame, groupTitle: frameDisplay(f) });
         } else {
@@ -647,7 +647,7 @@ export function buildSession(lesson: PatternLesson, type: DrillType, key?: strin
     const fr = framesOf(lesson).filter((f) => f.conj);
     const f = fr.find((x) => x.frame === frameKey) ?? fr[0];
     if (!f) return [];
-    const p: PKey = person ?? "I";
+    const p: PKey = person && person !== "all" ? person : "I";
     const op = (key ?? "past") as Op;
     const steps = vocabByCategory(f.category).map((w) => {
       const r = renderSentence(f, p, w.word, w.nativeZh, op);
@@ -680,12 +680,12 @@ export function transformFrames(lesson: PatternLesson): SubFrame[] {
   return framesOf(lesson).filter((f) => f.conj);
 }
 // 轉換某句框+人稱+操作的示範
-export function transformExample(lesson: PatternLesson, op: TransformOpKey, frameKey?: string, person: PKey = "I") {
+export function transformExample(lesson: PatternLesson, op: TransformOpKey, frameKey?: string, person: PKey | "all" = "I") {
   const fr = transformFrames(lesson);
   const f = fr.find((x) => x.frame === frameKey) ?? fr[0];
   const w = f ? vocabByCategory(f.category)[0] : undefined;
   if (!f || !w) return { cue: "", answer: "" };
-  const r = renderSentence(f, person, w.word, w.nativeZh, op);
+  const r = renderSentence(f, person === "all" ? "I" : person, w.word, w.nativeZh, op);
   return { cue: w.word, answer: r.en };
 }
 
