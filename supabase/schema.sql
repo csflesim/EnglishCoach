@@ -50,8 +50,8 @@ create table vocabulary (
   source text not null default 'seed'       -- seed / ai / user
 );
 
--- ── 詞本:只有名稱 ──
-create table wordbooks (
+-- ── 詞本:只有名稱(沿用既有表,保留「雅思」9389 字以便搬遷)──
+create table if not exists wordbooks (
   name text primary key
 );
 
