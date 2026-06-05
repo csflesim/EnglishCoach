@@ -1,0 +1,38 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  background-color: #0a0e14;
+  color: #e6edf3;
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-ink-700/70 bg-ink-850/80 backdrop-blur;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition active:scale-[0.98] disabled:opacity-40 disabled:active:scale-100;
+  }
+  .btn-primary {
+    @apply btn bg-accent text-ink-950 hover:bg-accent-soft;
+  }
+  .btn-ghost {
+    @apply btn border border-ink-700 bg-ink-800/60 text-slate-200 hover:bg-ink-700;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium;
+  }
+}
+
+/* subtle scanline / grid backdrop for the "agency" vibe */
+.bg-grid {
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(57, 208, 163, 0.07) 1px, transparent 0);
+  background-size: 22px 22px;
+}
