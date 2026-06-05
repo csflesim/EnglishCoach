@@ -62,7 +62,7 @@ export default function AdminPage() {
           <Link href="/" className="btn-ghost ml-auto px-3 py-1.5 text-xs">← 回前台</Link>
         </div>
         <div className="mx-auto flex max-w-4xl gap-1 px-4 pb-2">
-          {([["patterns", "句型管理"], ["vocab", "單字庫"], ["wordbook", "詞本"], ["bulk", "批量上傳"]] as [Tab, string][]).map(([t, label]) => (
+          {([["patterns", "句型管理"], ["wordbook", "詞本"]] as [Tab, string][]).map(([t, label]) => (
             <button key={t} onClick={() => setTab(t)} className={`rounded-lg px-3 py-1.5 text-sm ${tab === t ? "bg-accent text-ink-950 font-semibold" : "text-slate-400 hover:bg-ink-800"}`}>{label}</button>
           ))}
         </div>
@@ -84,9 +84,7 @@ export default function AdminPage() {
         ) : (
           <>
             {tab === "patterns" && <PatternsAdmin onChange={refresh} />}
-            {tab === "vocab" && <VocabAdmin onChange={refresh} />}
             {tab === "wordbook" && <WordbookAdmin onChange={refresh} />}
-            {tab === "bulk" && <BulkAdmin onChange={refresh} />}
           </>
         )}
       </main>
