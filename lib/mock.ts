@@ -424,30 +424,42 @@ export let lessons: PatternLesson[] = [
       { op: "question", instruction: "改成疑問 (→ Question)", enFrom: "I am", enTo: "Are you", zhFrom: "我很", zhTo: "你", question: true },
     ],
     expansion: [
-      { base: "I am tired.", baseZh: "我很累。", layers: [
-        { cue: "+ today", answer: "I am tired today.", nativeZh: "我今天很累。" },
-        { cue: "+ because I worked late", answer: "I am tired today because I worked late.", nativeZh: "我今天很累，因為我工作到很晚。" },
-      ] },
-      { base: "I am a student.", baseZh: "我是學生。", layers: [
-        { cue: "+ at the college", answer: "I am a student at the college.", nativeZh: "我是這所學院的學生。" },
-        { cue: "+ in my second year", answer: "I am a student at the college in my second year.", nativeZh: "我是這所學院二年級的學生。" },
-      ] },
-      { base: "I am from Taiwan.", baseZh: "我來自台灣。", layers: [
-        { cue: "+ originally", answer: "I am originally from Taiwan.", nativeZh: "我原本來自台灣。" },
-        { cue: "+ but I live here now", answer: "I am originally from Taiwan, but I live here now.", nativeZh: "我原本來自台灣，但現在住在這裡。" },
-      ] },
-      { base: "I am here to study.", baseZh: "我來這裡讀書。", layers: [
-        { cue: "+ English", answer: "I am here to study English.", nativeZh: "我來這裡學英文。" },
-        { cue: "+ for my career", answer: "I am here to study English for my career.", nativeZh: "我來這裡為了職涯學英文。" },
-      ] },
-      { base: "I am at work.", baseZh: "我在公司。", layers: [
-        { cue: "+ right now", answer: "I am at work right now.", nativeZh: "我現在在公司。" },
-        { cue: "+ until six", answer: "I am at work right now until six.", nativeZh: "我現在在公司，要到六點。" },
-      ] },
-      { base: "I am hungry.", baseZh: "我很餓。", layers: [
-        { cue: "+ a little", answer: "I am a little hungry.", nativeZh: "我有點餓。" },
-        { cue: "+ let's eat", answer: "I am a little hungry, let's eat.", nativeZh: "我有點餓，我們去吃吧。" },
-      ] },
+      {
+        base: "I am tired.", baseZh: "我很累。", layers: [
+          { cue: "+ today", answer: "I am tired today.", nativeZh: "我今天很累。" },
+          { cue: "+ because I worked late", answer: "I am tired today because I worked late.", nativeZh: "我今天很累，因為我工作到很晚。" },
+        ]
+      },
+      {
+        base: "I am a student.", baseZh: "我是學生。", layers: [
+          { cue: "+ at the college", answer: "I am a student at the college.", nativeZh: "我是這所學院的學生。" },
+          { cue: "+ in my second year", answer: "I am a student at the college in my second year.", nativeZh: "我是這所學院二年級的學生。" },
+        ]
+      },
+      {
+        base: "I am from Taiwan.", baseZh: "我來自台灣。", layers: [
+          { cue: "+ originally", answer: "I am originally from Taiwan.", nativeZh: "我原本來自台灣。" },
+          { cue: "+ but I live here now", answer: "I am originally from Taiwan, but I live here now.", nativeZh: "我原本來自台灣，但現在住在這裡。" },
+        ]
+      },
+      {
+        base: "I am here to study.", baseZh: "我來這裡讀書。", layers: [
+          { cue: "+ English", answer: "I am here to study English.", nativeZh: "我來這裡學英文。" },
+          { cue: "+ for my career", answer: "I am here to study English for my career.", nativeZh: "我來這裡為了職涯學英文。" },
+        ]
+      },
+      {
+        base: "I am at work.", baseZh: "我在公司。", layers: [
+          { cue: "+ right now", answer: "I am at work right now.", nativeZh: "我現在在公司。" },
+          { cue: "+ until six", answer: "I am at work right now until six.", nativeZh: "我現在在公司，要到六點。" },
+        ]
+      },
+      {
+        base: "I am hungry.", baseZh: "我很餓。", layers: [
+          { cue: "+ a little", answer: "I am a little hungry.", nativeZh: "我有點餓。" },
+          { cue: "+ let's eat", answer: "I am a little hungry, let's eat.", nativeZh: "我有點餓，我們去吃吧。" },
+        ]
+      },
     ],
     response: [],
   },
@@ -466,29 +478,41 @@ export let lessons: PatternLesson[] = [
       { op: "question", instruction: "改成疑問 (→ Question)", enFrom: "I am looking for", enTo: "Are you looking for", zhFrom: "我在找", zhTo: "你在找", question: true },
     ],
     expansion: [
-      { base: "I am looking for an apartment.", baseZh: "我在找公寓。", layers: [
-        { cue: "+ downtown", answer: "I am looking for an apartment downtown.", nativeZh: "我在找市中心的公寓。" },
-        { cue: "+ near my office", answer: "I am looking for an apartment downtown near my office.", nativeZh: "我在找公司附近、市中心的公寓。" },
-      ] },
-      { base: "I am looking for a job.", baseZh: "我在找工作。", layers: [
-        { cue: "+ part-time", answer: "I am looking for a part-time job.", nativeZh: "我在找兼職工作。" },
-        { cue: "+ downtown", answer: "I am looking for a part-time job downtown.", nativeZh: "我在找市中心的兼職工作。" },
-      ] },
-      { base: "I am looking for a doctor.", baseZh: "我在找醫生。", layers: [
-        { cue: "+ a good", answer: "I am looking for a good doctor.", nativeZh: "我在找好醫生。" },
-        { cue: "+ near my home", answer: "I am looking for a good doctor near my home.", nativeZh: "我在找住家附近的好醫生。" },
-      ] },
-      { base: "I am looking for the bus station.", baseZh: "我在找公車站。", layers: [
-        { cue: "+ on this street", answer: "I am looking for the bus station on this street.", nativeZh: "我在找這條街上的公車站。" },
-      ] },
-      { base: "I am looking for help.", baseZh: "我在找人幫忙。", layers: [
-        { cue: "+ with my luggage", answer: "I am looking for help with my luggage.", nativeZh: "我在找人幫忙提行李。" },
-        { cue: "+ right now", answer: "I am looking for help with my luggage right now.", nativeZh: "我現在就在找人幫忙提行李。" },
-      ] },
-      { base: "I am looking for a pharmacy.", baseZh: "我在找藥局。", layers: [
-        { cue: "+ nearby", answer: "I am looking for a pharmacy nearby.", nativeZh: "我在找附近的藥局。" },
-        { cue: "+ that is open", answer: "I am looking for a pharmacy nearby that is open.", nativeZh: "我在找附近還開著的藥局。" },
-      ] },
+      {
+        base: "I am looking for an apartment.", baseZh: "我在找公寓。", layers: [
+          { cue: "+ downtown", answer: "I am looking for an apartment downtown.", nativeZh: "我在找市中心的公寓。" },
+          { cue: "+ near my office", answer: "I am looking for an apartment downtown near my office.", nativeZh: "我在找公司附近、市中心的公寓。" },
+        ]
+      },
+      {
+        base: "I am looking for a job.", baseZh: "我在找工作。", layers: [
+          { cue: "+ part-time", answer: "I am looking for a part-time job.", nativeZh: "我在找兼職工作。" },
+          { cue: "+ downtown", answer: "I am looking for a part-time job downtown.", nativeZh: "我在找市中心的兼職工作。" },
+        ]
+      },
+      {
+        base: "I am looking for a doctor.", baseZh: "我在找醫生。", layers: [
+          { cue: "+ a good", answer: "I am looking for a good doctor.", nativeZh: "我在找好醫生。" },
+          { cue: "+ near my home", answer: "I am looking for a good doctor near my home.", nativeZh: "我在找住家附近的好醫生。" },
+        ]
+      },
+      {
+        base: "I am looking for the bus station.", baseZh: "我在找公車站。", layers: [
+          { cue: "+ on this street", answer: "I am looking for the bus station on this street.", nativeZh: "我在找這條街上的公車站。" },
+        ]
+      },
+      {
+        base: "I am looking for help.", baseZh: "我在找人幫忙。", layers: [
+          { cue: "+ with my luggage", answer: "I am looking for help with my luggage.", nativeZh: "我在找人幫忙提行李。" },
+          { cue: "+ right now", answer: "I am looking for help with my luggage right now.", nativeZh: "我現在就在找人幫忙提行李。" },
+        ]
+      },
+      {
+        base: "I am looking for a pharmacy.", baseZh: "我在找藥局。", layers: [
+          { cue: "+ nearby", answer: "I am looking for a pharmacy nearby.", nativeZh: "我在找附近的藥局。" },
+          { cue: "+ that is open", answer: "I am looking for a pharmacy nearby that is open.", nativeZh: "我在找附近還開著的藥局。" },
+        ]
+      },
     ],
     response: [
       { cue: "Why are you looking for an apartment?", answer: "Because my lease is ending soon.", nativeZh: "因為我的租約快到期了。" },
@@ -514,30 +538,42 @@ export let lessons: PatternLesson[] = [
       { op: "question", instruction: "改成疑問 (→ Question)", enFrom: "I need", enTo: "Do you need", zhFrom: "我需要", zhTo: "你需要", question: true },
     ],
     expansion: [
-      { base: "I need help.", baseZh: "我需要幫忙。", layers: [
-        { cue: "+ with this form", answer: "I need help with this form.", nativeZh: "我需要幫忙填這張表。" },
-        { cue: "+ please", answer: "I need help with this form, please.", nativeZh: "請幫我填一下這張表。" },
-      ] },
-      { base: "I need a doctor.", baseZh: "我需要醫生。", layers: [
-        { cue: "+ right now", answer: "I need a doctor right now.", nativeZh: "我現在就需要醫生。" },
-        { cue: "+ who speaks Chinese", answer: "I need a doctor who speaks Chinese right now.", nativeZh: "我現在需要一位會說中文的醫生。" },
-      ] },
-      { base: "I need a taxi.", baseZh: "我需要計程車。", layers: [
-        { cue: "+ to the airport", answer: "I need a taxi to the airport.", nativeZh: "我需要去機場的計程車。" },
-        { cue: "+ in ten minutes", answer: "I need a taxi to the airport in ten minutes.", nativeZh: "我需要十分鐘內到機場的計程車。" },
-      ] },
-      { base: "I need water.", baseZh: "我需要水。", layers: [
-        { cue: "+ please", answer: "I need water, please.", nativeZh: "請給我水。" },
-        { cue: "+ and a menu", answer: "I need water and a menu, please.", nativeZh: "請給我水和菜單。" },
-      ] },
-      { base: "I need more time.", baseZh: "我需要更多時間。", layers: [
-        { cue: "+ to finish", answer: "I need more time to finish.", nativeZh: "我需要更多時間完成。" },
-        { cue: "+ this report", answer: "I need more time to finish this report.", nativeZh: "我需要更多時間完成這份報告。" },
-      ] },
-      { base: "I need a receipt.", baseZh: "我需要收據。", layers: [
-        { cue: "+ for this", answer: "I need a receipt for this.", nativeZh: "我需要這個的收據。" },
-        { cue: "+ for my taxes", answer: "I need a receipt for this for my taxes.", nativeZh: "我需要這個的收據，報稅用。" },
-      ] },
+      {
+        base: "I need help.", baseZh: "我需要幫忙。", layers: [
+          { cue: "+ with this form", answer: "I need help with this form.", nativeZh: "我需要幫忙填這張表。" },
+          { cue: "+ please", answer: "I need help with this form, please.", nativeZh: "請幫我填一下這張表。" },
+        ]
+      },
+      {
+        base: "I need a doctor.", baseZh: "我需要醫生。", layers: [
+          { cue: "+ right now", answer: "I need a doctor right now.", nativeZh: "我現在就需要醫生。" },
+          { cue: "+ who speaks Chinese", answer: "I need a doctor who speaks Chinese right now.", nativeZh: "我現在需要一位會說中文的醫生。" },
+        ]
+      },
+      {
+        base: "I need a taxi.", baseZh: "我需要計程車。", layers: [
+          { cue: "+ to the airport", answer: "I need a taxi to the airport.", nativeZh: "我需要去機場的計程車。" },
+          { cue: "+ in ten minutes", answer: "I need a taxi to the airport in ten minutes.", nativeZh: "我需要十分鐘內到機場的計程車。" },
+        ]
+      },
+      {
+        base: "I need water.", baseZh: "我需要水。", layers: [
+          { cue: "+ please", answer: "I need water, please.", nativeZh: "請給我水。" },
+          { cue: "+ and a menu", answer: "I need water and a menu, please.", nativeZh: "請給我水和菜單。" },
+        ]
+      },
+      {
+        base: "I need more time.", baseZh: "我需要更多時間。", layers: [
+          { cue: "+ to finish", answer: "I need more time to finish.", nativeZh: "我需要更多時間完成。" },
+          { cue: "+ this report", answer: "I need more time to finish this report.", nativeZh: "我需要更多時間完成這份報告。" },
+        ]
+      },
+      {
+        base: "I need a receipt.", baseZh: "我需要收據。", layers: [
+          { cue: "+ for this", answer: "I need a receipt for this.", nativeZh: "我需要這個的收據。" },
+          { cue: "+ for my taxes", answer: "I need a receipt for this for my taxes.", nativeZh: "我需要這個的收據，報稅用。" },
+        ]
+      },
     ],
     response: [
       { cue: "What do you need?", answer: "I need to see a doctor.", nativeZh: "我需要看醫生。" },
@@ -556,17 +592,23 @@ export let lessons: PatternLesson[] = [
     ],
     transformation: [],
     expansion: [
-      { base: "Are you ready?", baseZh: "你準備好了嗎？", layers: [
-        { cue: "+ to go", answer: "Are you ready to go?", nativeZh: "你準備好要走了嗎？" },
-        { cue: "+ now", answer: "Are you ready to go now?", nativeZh: "你現在準備好要走了嗎？" },
-      ] },
-      { base: "Are you a student?", baseZh: "你是學生嗎？", layers: [
-        { cue: "+ here", answer: "Are you a student here?", nativeZh: "你是這裡的學生嗎？" },
-      ] },
-      { base: "Are you free?", baseZh: "你有空嗎？", layers: [
-        { cue: "+ tonight", answer: "Are you free tonight?", nativeZh: "你今晚有空嗎？" },
-        { cue: "+ for dinner", answer: "Are you free tonight for dinner?", nativeZh: "你今晚有空吃晚餐嗎？" },
-      ] },
+      {
+        base: "Are you ready?", baseZh: "你準備好了嗎？", layers: [
+          { cue: "+ to go", answer: "Are you ready to go?", nativeZh: "你準備好要走了嗎？" },
+          { cue: "+ now", answer: "Are you ready to go now?", nativeZh: "你現在準備好要走了嗎？" },
+        ]
+      },
+      {
+        base: "Are you a student?", baseZh: "你是學生嗎？", layers: [
+          { cue: "+ here", answer: "Are you a student here?", nativeZh: "你是這裡的學生嗎？" },
+        ]
+      },
+      {
+        base: "Are you free?", baseZh: "你有空嗎？", layers: [
+          { cue: "+ tonight", answer: "Are you free tonight?", nativeZh: "你今晚有空嗎？" },
+          { cue: "+ for dinner", answer: "Are you free tonight for dinner?", nativeZh: "你今晚有空吃晚餐嗎？" },
+        ]
+      },
     ],
     response: [],
   },
@@ -581,15 +623,21 @@ export let lessons: PatternLesson[] = [
     ],
     transformation: [],
     expansion: [
-      { base: "Where is the washroom?", baseZh: "洗手間在哪裡？", layers: [
-        { cue: "+ please", answer: "Where is the washroom, please?", nativeZh: "請問洗手間在哪裡？" },
-      ] },
-      { base: "Where is the station?", baseZh: "車站在哪裡？", layers: [
-        { cue: "+ nearest", answer: "Where is the nearest station?", nativeZh: "最近的車站在哪裡？" },
-      ] },
-      { base: "I can't find the exit.", baseZh: "我找不到出口。", layers: [
-        { cue: "+ can you help", answer: "I can't find the exit. Can you help me?", nativeZh: "我找不到出口，可以幫我嗎？" },
-      ] },
+      {
+        base: "Where is the washroom?", baseZh: "洗手間在哪裡？", layers: [
+          { cue: "+ please", answer: "Where is the washroom, please?", nativeZh: "請問洗手間在哪裡？" },
+        ]
+      },
+      {
+        base: "Where is the station?", baseZh: "車站在哪裡？", layers: [
+          { cue: "+ nearest", answer: "Where is the nearest station?", nativeZh: "最近的車站在哪裡？" },
+        ]
+      },
+      {
+        base: "I can't find the exit.", baseZh: "我找不到出口。", layers: [
+          { cue: "+ can you help", answer: "I can't find the exit. Can you help me?", nativeZh: "我找不到出口，可以幫我嗎？" },
+        ]
+      },
     ],
     response: [],
   },
@@ -605,15 +653,21 @@ export let lessons: PatternLesson[] = [
     ],
     transformation: [],
     expansion: [
-      { base: "I have a ticket.", baseZh: "我有票。", layers: [
-        { cue: "+ for tonight", answer: "I have a ticket for tonight.", nativeZh: "我有今晚的票。" },
-      ] },
-      { base: "I don't have a charger.", baseZh: "我沒有充電器。", layers: [
-        { cue: "+ with me", answer: "I don't have a charger with me.", nativeZh: "我身上沒帶充電器。" },
-      ] },
-      { base: "Do you have water?", baseZh: "你有水嗎？", layers: [
-        { cue: "+ cold", answer: "Do you have cold water?", nativeZh: "你有冰水嗎？" },
-      ] },
+      {
+        base: "I have a ticket.", baseZh: "我有票。", layers: [
+          { cue: "+ for tonight", answer: "I have a ticket for tonight.", nativeZh: "我有今晚的票。" },
+        ]
+      },
+      {
+        base: "I don't have a charger.", baseZh: "我沒有充電器。", layers: [
+          { cue: "+ with me", answer: "I don't have a charger with me.", nativeZh: "我身上沒帶充電器。" },
+        ]
+      },
+      {
+        base: "Do you have water?", baseZh: "你有水嗎？", layers: [
+          { cue: "+ cold", answer: "Do you have cold water?", nativeZh: "你有冰水嗎？" },
+        ]
+      },
     ],
     response: [],
   },
@@ -629,15 +683,21 @@ export let lessons: PatternLesson[] = [
     ],
     transformation: [],
     expansion: [
-      { base: "This is my passport.", baseZh: "這是我的護照。", layers: [
-        { cue: "+ and my visa", answer: "This is my passport and my visa.", nativeZh: "這是我的護照和簽證。" },
-      ] },
-      { base: "Where is my phone?", baseZh: "我的手機在哪裡？", layers: [
-        { cue: "+ I just had it", answer: "Where is my phone? I just had it.", nativeZh: "我的手機在哪裡？我剛剛還拿著。" },
-      ] },
-      { base: "I lost my wallet.", baseZh: "我弄丟了錢包。", layers: [
-        { cue: "+ on the bus", answer: "I lost my wallet on the bus.", nativeZh: "我把錢包掉在公車上了。" },
-      ] },
+      {
+        base: "This is my passport.", baseZh: "這是我的護照。", layers: [
+          { cue: "+ and my visa", answer: "This is my passport and my visa.", nativeZh: "這是我的護照和簽證。" },
+        ]
+      },
+      {
+        base: "Where is my phone?", baseZh: "我的手機在哪裡？", layers: [
+          { cue: "+ I just had it", answer: "Where is my phone? I just had it.", nativeZh: "我的手機在哪裡？我剛剛還拿著。" },
+        ]
+      },
+      {
+        base: "I lost my wallet.", baseZh: "我弄丟了錢包。", layers: [
+          { cue: "+ on the bus", answer: "I lost my wallet on the bus.", nativeZh: "我把錢包掉在公車上了。" },
+        ]
+      },
     ],
     response: [],
   },

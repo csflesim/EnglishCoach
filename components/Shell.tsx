@@ -5,7 +5,8 @@ import { usePathname } from "next/navigation";
 
 const nav = [
   { href: "/", label: "訓練", en: "Training", icon: "⚡" },
-  { href: "/weaknesses", label: "我的弱點", en: "Weaknesses", icon: "◎" },
+  { href: "/words", label: "單詞", en: "Words", icon: "🔤" },
+  { href: "/sentences", label: "句子", en: "Sentences", icon: "💬" },
   { href: "/progress", label: "進度", en: "Progress", icon: "▤" },
 ];
 

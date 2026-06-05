@@ -19,6 +19,7 @@ import {
 import { initProgress, markMode, lessonProgress, recommendNextLessonId, type ProgressMap } from "@/lib/progress";
 import { initContent } from "@/lib/content";
 import { transcribe, evaluate, type EvalResult } from "@/lib/ai";
+import { logReview } from "@/lib/review";
 
 type Mode = "home" | "select" | "selectSub" | "selectTransFrame" | "selectOp" | "running" | "complete";
 type RunPhase = "groupIntro" | "cue" | "listening" | "speaking" | "reveal";
@@ -75,6 +76,7 @@ export default function TrainingPage() {
   const [aiOn, setAiOn] = useState(false);
   const [scoring, setScoring] = useState(false);
   const [aiResult, setAiResult] = useState<(EvalResult & { transcript?: string }) | null>(null);
+  const [markedMsg, setMarkedMsg] = useState("");
   const progressRef = useRef<ProgressMap>({});
   progressRef.current = progress;
   const aiRef = useRef(false);
@@ -294,6 +296,7 @@ export default function TrainingPage() {
         if (text) res = await evaluate({ pattern: lessonRef.current.patternText, expected: cur.answer, transcript: text, drillType: cur.type });
         setScoring(false);
         setAiResult(res ? { ...res, transcript: text ?? "" } : null);
+        if (res && !res.correct) logRep(cur, "wrong");
         revealAndContinue(cur);
       };
       try { rec.stop(); } catch { setScoring(false); revealAndContinue(cur); }
@@ -330,6 +333,17 @@ export default function TrainingPage() {
       }, repeatMs);
     });
   }
+  // 寫入複習紀錄(只記答錯 / 標記不熟):句子 + (替換時)單字
+  function logRep(cur: Step, event: "wrong" | "unknown") {
+    const lid = lessonRef.current?.id ?? selectedId;
+    logReview({ kind: "sentence", ref: `sent:${lid}:${cur.answer}`, text: cur.answer, nativeZh: cur.nativeZh, patternId: lid, event });
+    if (cur.type === "Substitution" && cur.cue) logReview({ kind: "word", ref: `word:${cur.cue.toLowerCase()}`, text: cur.cue, nativeZh: "", patternId: lid, event });
+  }
+  function markCurrentUnknown() {
+    const cur = stepsRef.current[idxRef.current];
+    if (cur) { logRep(cur, "unknown"); setMarkedMsg("已加入複習"); schedule(() => setMarkedMsg(""), 1500); }
+  }
+
   function finish() {
     clearTimers();
     try { window.speechSynthesis?.cancel(); } catch {}
@@ -681,7 +695,9 @@ export default function TrainingPage() {
       <div className="mt-4 flex items-center justify-center gap-2">
         <button onClick={togglePause} className="btn-ghost">{paused ? "▶ 繼續" : "⏸ 暫停"}</button>
         <button onClick={() => setAudioOn((v) => !v)} className="btn-ghost">{audioOn ? "🔊 語音開" : "🔇 語音關"}</button>
+        <button onClick={markCurrentUnknown} className="btn-ghost text-red-400">✗ 不熟</button>
       </div>
+      {markedMsg && <p className="mt-2 text-center text-xs text-accent">{markedMsg}</p>}
       {micError && <p className="mt-3 text-center text-xs text-gold">麥克風無法使用，已切換為手動模式。</p>}
       <p className="mt-3 text-center text-xs text-slate-600">3 秒只是反應速度參考線，不是答案倒數。你開口後，說完才會出正解。</p>
     </Shell>

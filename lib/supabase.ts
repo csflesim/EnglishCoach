@@ -55,6 +55,24 @@ export async function upsertReturning<T = Record<string, unknown>>(
   }
 }
 
+export async function selectEq<T = Record<string, unknown>>(table: string, col: string, val: string, columns = "*"): Promise<T[]> {
+  const c = sb();
+  if (!c) return [];
+  try {
+    const { data, error } = await c.from(table).select(columns).eq(col, val);
+    if (error) return [];
+    return (data ?? []) as T[];
+  } catch {
+    return [];
+  }
+}
+
+export async function insertRows(table: string, rows: Record<string, unknown>[]): Promise<void> {
+  const c = sb();
+  if (!c || !rows.length) return;
+  try { await c.from(table).insert(rows); } catch { /* ignore */ }
+}
+
 export async function countRows(table: string, eqCol?: string, eqVal?: string): Promise<number> {
   const c = sb();
   if (!c) return 0;
