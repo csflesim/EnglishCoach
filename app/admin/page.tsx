@@ -15,7 +15,7 @@ import {
   initContent,
   addFrame,
   removeFrame,
-  getWordbookNames,
+  getWordbooks,
   createWordbook,
   removeWordbook,
   addWordsToBook,
@@ -141,7 +141,7 @@ function PatternsAdmin({ onChange }: { onChange: () => void }) {
 
 // ─────────── 詞本（只存名稱;單字進 vocabulary + wordbook_vocab）───────────
 function WordbookAdmin({ onChange }: { onChange: () => void }) {
-  const names = getWordbookNames();
+  const names = getWordbooks().map((b) => b.name);
   const [newName, setNewName] = useState("");
   const [selected, setSelected] = useState<string | null>(names[0] ?? null);
   const [bulk, setBulk] = useState("");

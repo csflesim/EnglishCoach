@@ -17,14 +17,15 @@ import {
   type Cycle,
   type Unit,
 } from "./mock";
-import { hasSupabase, selectAll, upsertRows, upsertReturning, deleteWhere, countRows } from "./supabase";
+import { hasSupabase, selectAll, selectIn, upsertRows, deleteWhere, countContains } from "./supabase";
 
 type CycleRow = { cycle: number; title: string; clb: string };
 type UnitRow = { unit: number; cycle: number; goal: string; focus: string; pattern: string; lesson_id: string | null };
 type PatternRow = { id: string; unit: number; type: string; transform_frame: string | null; drills: unknown };
 type VocabRow = { id: number; word: string; native_zh: string; categories: string[] };
 
-let wbNames: string[] = [];
+export type Wordbook = { name: string; label: string | null };
+let wbCatalog: Wordbook[] = [];
 let applied = false;
 
 function cyclesFromRows(cycles: CycleRow[], units: UnitRow[]): Cycle[] {
@@ -50,10 +51,10 @@ export async function initContent(): Promise<void> {
     selectAll<UnitRow>("units"),
     selectAll<PatternRow>("patterns"),
     selectAll<VocabRow>("vocabulary"),
-    selectAll<{ name: string }>("wordbooks"),
+    selectAll<Wordbook>("wordbooks"),
   ]);
 
-  wbNames = books.map((b) => b.name).sort();
+  wbCatalog = books.map((b) => ({ name: b.name, label: b.label ?? null }));
 
   // vocabulary:每個分類展開成一筆(只收有分類的,供替換抓字)
   if (vocab.length) {
@@ -101,32 +102,34 @@ export async function removeFrame(lessonId: string, frame: string): Promise<void
     await upsertRows("patterns", [{ id: `${lessonId}__substitution`, unit: lesson.unit, type: "substitution", drills: lesson.substitution }], "id");
 }
 
-// ── 詞本(只有名稱;單字存 vocabulary + wordbook_vocab)──
-export function getWordbookNames(): string[] {
-  return wbNames;
+// ── 詞本(catalog:name+label;成員存 vocabulary.wordbooks 陣列)──
+export function getWordbooks(): Wordbook[] {
+  return wbCatalog;
 }
-export async function createWordbook(name: string): Promise<boolean> {
+export async function createWordbook(name: string, label?: string): Promise<boolean> {
   const n = name.trim();
-  if (!n || wbNames.includes(n)) return false;
-  if (hasSupabase) { const e = await upsertRows("wordbooks", [{ name: n }], "name"); if (e) return false; }
-  wbNames = [...wbNames, n].sort();
+  if (!n || wbCatalog.some((b) => b.name === n)) return false;
+  if (hasSupabase) { const e = await upsertRows("wordbooks", [{ name: n, label: label ?? null }], "name"); if (e) return false; }
+  wbCatalog = [...wbCatalog, { name: n, label: label ?? null }];
   return true;
 }
 export async function removeWordbook(name: string): Promise<void> {
   if (hasSupabase) await deleteWhere("wordbooks", "name", name);
-  wbNames = wbNames.filter((x) => x !== name);
+  wbCatalog = wbCatalog.filter((b) => b.name !== name);
 }
 export async function wordbookCount(name: string): Promise<number> {
   if (!hasSupabase) return 0;
-  return countRows("wordbook_vocab", "wordbook_name", name);
+  return countContains("vocabulary", "wordbooks", name);
 }
-// 加字:upsert 進 vocabulary(取得 id)→ 連到詞本
+// 加字:upsert 進 vocabulary,並把詞本名併入該字的 wordbooks 陣列(讀-合併-寫)
 export async function addWordsToBook(name: string, words: string[]): Promise<number> {
   const clean = Array.from(new Set(words.map((w) => w.trim()).filter(Boolean)));
   if (!clean.length || !hasSupabase) return 0;
-  const rows = await upsertReturning<{ id: number; word: string }>("vocabulary", clean.map((w) => ({ word: w, source: "user" })), "word", "id,word");
-  if (rows.length) await upsertRows("wordbook_vocab", rows.map((r) => ({ wordbook_name: name, vocab_id: r.id })), "wordbook_name,vocab_id");
-  return rows.length;
+  const existing = await selectIn<{ word: string; wordbooks: string[] }>("vocabulary", "word", clean, "word,wordbooks");
+  const map = new Map(existing.map((r) => [r.word, r.wordbooks ?? []]));
+  const rows = clean.map((w) => ({ word: w, wordbooks: Array.from(new Set([...(map.get(w) ?? []), name])) }));
+  const e = await upsertRows("vocabulary", rows, "word");
+  return e ? 0 : rows.length;
 }
 
 // ── 把程式種子上傳到 DB(cycles/units/patterns/vocabulary)──

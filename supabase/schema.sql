@@ -5,7 +5,7 @@
 -- ── 移除舊結構 ──
 drop table if exists pattern_vocab cascade;
 drop table if exists kv cascade;
-drop table if exists wordbook_vocab cascade;
+drop table if exists wordbooks cascade;
 drop table if exists patterns cascade;
 drop table if exists units cascade;
 drop table if exists cycles cascade;
@@ -46,21 +46,18 @@ create table vocabulary (
   word text unique not null,
   native_zh text not null default '',
   categories text[] not null default '{}',  -- 語意分類(可多),對應句框 category
+  wordbooks text[] not null default '{}',   -- 所屬詞本(如 IELTS / CELPIP)
   pos text,
   source text not null default 'seed'       -- seed / ai / user
 );
 
--- ── 詞本:只有名稱(沿用既有表,保留「雅思」9389 字以便搬遷)──
-create table if not exists wordbooks (
-  name text primary key
+-- ── 詞本 catalog:id + 名稱 + 中文標籤(成員存在 vocabulary.wordbooks 陣列)──
+create table wordbooks (
+  id bigint generated always as identity primary key,
+  name text unique not null,
+  label text
 );
-
--- ── 單字 ↔ 詞本:多對多 ──
-create table wordbook_vocab (
-  wordbook_name text references wordbooks(name) on delete cascade,
-  vocab_id bigint references vocabulary(id) on delete cascade,
-  primary key (wordbook_name, vocab_id)
-);
+insert into wordbooks (name, label) values ('CELPIP', '思培'), ('IELTS', '雅思');
 
 -- ── 學習進度(取代 kv.progress)──
 create table progress (
@@ -98,7 +95,7 @@ create table review_events (
 do $$
 declare t text;
 begin
-  foreach t in array array['cycles','units','patterns','vocabulary','wordbooks','wordbook_vocab','progress','review_items','review_events']
+  foreach t in array array['cycles','units','patterns','vocabulary','wordbooks','progress','review_items','review_events']
   loop
     execute format('alter table %I enable row level security', t);
     execute format('drop policy if exists "%s anon all" on %I', t, t);

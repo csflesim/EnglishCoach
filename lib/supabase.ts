@@ -67,6 +67,32 @@ export async function selectEq<T = Record<string, unknown>>(table: string, col: 
   }
 }
 
+export async function selectIn<T = Record<string, unknown>>(table: string, col: string, vals: string[], columns = "*"): Promise<T[]> {
+  const c = sb();
+  if (!c || !vals.length) return [];
+  try {
+    const out: T[] = [];
+    for (let i = 0; i < vals.length; i += 100) {
+      const { data } = await c.from(table).select(columns).in(col, vals.slice(i, i + 100));
+      out.push(...((data ?? []) as T[]));
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+export async function countContains(table: string, col: string, val: string): Promise<number> {
+  const c = sb();
+  if (!c) return 0;
+  try {
+    const { count } = await c.from(table).select("*", { count: "exact", head: true }).contains(col, [val]);
+    return count ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
 export async function insertRows(table: string, rows: Record<string, unknown>[]): Promise<void> {
   const c = sb();
   if (!c || !rows.length) return;
