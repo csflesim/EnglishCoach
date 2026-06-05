@@ -46,7 +46,7 @@ export type PatternLesson = {
 // ── 單字庫（替換變數來源；帶分類 + 母語翻譯）──────────────────────
 export type VocabWord = { word: string; nativeZh: string; category: string };
 
-export const vocabBank: VocabWord[] = [
+export let vocabBank: VocabWord[] = [
   // need_thing —「I need ___.」
   { word: "water", nativeZh: "水", category: "need_thing" },
   { word: "help", nativeZh: "幫忙", category: "need_thing" },
@@ -406,7 +406,7 @@ export function isExtraFrame(lessonId: string, frame: string) {
 }
 
 // ── 句型課（示範 2 課）────────────────────────────────────────────
-export const lessons: PatternLesson[] = [
+export let lessons: PatternLesson[] = [
   {
     id: "L_am",
     patternText: "I am ___.",
@@ -785,7 +785,7 @@ export type Unit = {
 };
 export type Cycle = { cycle: number; title: string; clb: string; units: Unit[] };
 
-export const learningPath: Cycle[] = [
+export let learningPath: Cycle[] = [
   {
     cycle: 1,
     title: "第一週期：點火 (Ignition)",
@@ -879,3 +879,14 @@ export const progress = {
   weakPatterns: weaknesses.patterns.length,
   estClb: "4.0",
 };
+
+// ── DB 驅動：以 Supabase 載入的內容取代程式種子(由 content.ts 注入)──
+// 先保存「原始程式種子」的參照,讓「上傳種子」永遠上傳程式碼版本(不受 DB 取代影響)
+const SEED_VOCAB = vocabBank;
+const SEED_LESSONS = lessons;
+const SEED_PATH = learningPath;
+export const seedContent = { vocab: SEED_VOCAB, lessons: SEED_LESSONS, learningPath: SEED_PATH };
+
+export function setVocabBank(v: VocabWord[]) { if (v.length) vocabBank = v; }
+export function setLessons(l: PatternLesson[]) { if (l.length) lessons = l; }
+export function setLearningPath(p: Cycle[]) { if (p.length) learningPath = p; }

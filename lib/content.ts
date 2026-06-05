@@ -7,10 +7,15 @@
 import {
   addFrameRuntime,
   removeFrameRuntime,
-  vocabBank,
-  lessons,
-  learningPath,
+  seedContent,
+  setVocabBank,
+  setLessons,
+  setLearningPath,
   type SubFrame,
+  type VocabWord,
+  type PatternLesson,
+  type Cycle,
+  type Unit,
 } from "./mock";
 import { hasSupabase, kvGet, kvSet, upsertRows, selectAll, deleteWhere } from "./supabase";
 
@@ -54,6 +59,46 @@ function persist() {
   if (hasSupabase) kvSet("content", o);
 }
 
+// 由 units 列重建三週期結構
+type UnitRow = { unit: number; cycle: number; cycle_title: string; clb: string; goal: string; focus: string; pattern: string; lesson_id: string | null };
+function cyclesFromUnits(rows: UnitRow[]): Cycle[] {
+  const byCycle = new Map<number, Cycle>();
+  for (const r of [...rows].sort((a, b) => a.unit - b.unit)) {
+    let c = byCycle.get(r.cycle);
+    if (!c) { c = { cycle: r.cycle, title: r.cycle_title, clb: r.clb, units: [] }; byCycle.set(r.cycle, c); }
+    const u: Unit = { unit: r.unit, goal: r.goal, focus: r.focus, pattern: r.pattern, lessonId: r.lesson_id ?? undefined };
+    c.units.push(u);
+  }
+  return Array.from(byCycle.values()).sort((a, b) => a.cycle - b.cycle);
+}
+
+type PatternRow = {
+  id: string; unit: number; pattern_text: string; transform_frame: string | null;
+  drills: Partial<Pick<PatternLesson, "substitution" | "transformation" | "expansion" | "response">>;
+};
+
+// 從 Supabase 載入課程內容,取代程式種子(DB 為來源;DB 空則沿用種子)
+async function loadContentFromDb(): Promise<void> {
+  const [vrows, prows, urows] = await Promise.all([
+    selectAll<{ word: string; native_zh: string; category: string }>("vocabulary"),
+    selectAll<PatternRow>("patterns"),
+    selectAll<UnitRow>("units"),
+  ]);
+  if (vrows.length) setVocabBank(vrows.map((r) => ({ word: r.word, nativeZh: r.native_zh, category: r.category } as VocabWord)));
+  if (prows.length)
+    setLessons(prows.map((r) => ({
+      id: r.id,
+      patternText: r.pattern_text,
+      unit: r.unit,
+      transformFrame: r.transform_frame ?? undefined,
+      substitution: r.drills?.substitution ?? [],
+      transformation: r.drills?.transformation ?? [],
+      expansion: r.drills?.expansion ?? [],
+      response: r.drills?.response ?? [],
+    } as PatternLesson)));
+  if (urows.length) setLearningPath(cyclesFromUnits(urows));
+}
+
 // 啟動時載入(雲端優先)並注入 mock 執行期陣列。回傳 Promise 供 UI 載完刷新。
 export async function initContent(): Promise<void> {
   if (applied) return;
@@ -65,6 +110,8 @@ export async function initContent(): Promise<void> {
   } else {
     cache = readLocal();
   }
+  // DB 驅動:用 Supabase 的課程內容取代程式種子(DB 空則沿用種子)
+  if (hasSupabase) await loadContentFromDb();
   Object.entries(cache.frames).forEach(([lessonId, frames]) => frames.forEach((f) => addFrameRuntime(lessonId, f)));
   // 詞本:Supabase 有獨立資料表;否則用本機 content blob 內的 wordbooks
   if (hasSupabase) {
@@ -172,13 +219,13 @@ export async function seedToDb(): Promise<string> {
   if (!hasSupabase) return "未設定 Supabase";
   const vErr = await upsertRows(
     "vocabulary",
-    vocabBank.map((v) => ({ word: v.word, native_zh: v.nativeZh, category: v.category, source: "seed" })),
+    seedContent.vocab.map((v) => ({ word: v.word, native_zh: v.nativeZh, category: v.category, source: "seed" })),
     "word,category",
   );
   if (vErr) return "單字上傳失敗:" + vErr;
   const pErr = await upsertRows(
     "patterns",
-    lessons.map((l) => ({
+    seedContent.lessons.map((l) => ({
       id: l.id,
       unit: l.unit,
       pattern_text: l.patternText,
@@ -188,7 +235,7 @@ export async function seedToDb(): Promise<string> {
     "id",
   );
   if (pErr) return "句型上傳失敗:" + pErr;
-  const units = learningPath.flatMap((c) =>
+  const units = seedContent.learningPath.flatMap((c) =>
     c.units.map((u) => ({
       unit: u.unit,
       cycle: c.cycle,
@@ -202,5 +249,5 @@ export async function seedToDb(): Promise<string> {
   );
   const uErr = await upsertRows("units", units, "unit");
   if (uErr) return "學習地圖上傳失敗:" + uErr;
-  return `✓ 已上傳 ${units.length} 單元地圖、${vocabBank.length} 單字、${lessons.length} 句型課到資料庫`;
+  return `✓ 已上傳 ${units.length} 單元地圖、${seedContent.vocab.length} 單字、${seedContent.lessons.length} 句型課到資料庫`;
 }
