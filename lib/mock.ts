@@ -814,7 +814,7 @@ export function availableModes(lesson: PatternLesson): DrillType[] {
   const m: DrillType[] = [];
   if (lesson.substitution.length) m.push("Substitution");
   if (lesson.transformation.length) m.push("Transformation");
-  if (lesson.expansion.length) m.push("Expansion");
+  // 擴展(Expansion)與情境反應(Response)先關閉
   return m;
 }
 
