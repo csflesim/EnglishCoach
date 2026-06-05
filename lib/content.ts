@@ -9,6 +9,7 @@ import {
   removeFrameRuntime,
   vocabBank,
   lessons,
+  learningPath,
   type SubFrame,
 } from "./mock";
 import { hasSupabase, kvGet, kvSet, upsertRows, selectAll, deleteWhere } from "./supabase";
@@ -187,5 +188,19 @@ export async function seedToDb(): Promise<string> {
     "id",
   );
   if (pErr) return "句型上傳失敗:" + pErr;
-  return `✓ 已上傳 ${vocabBank.length} 個單字、${lessons.length} 個句型課到資料庫`;
+  const units = learningPath.flatMap((c) =>
+    c.units.map((u) => ({
+      unit: u.unit,
+      cycle: c.cycle,
+      cycle_title: c.title,
+      clb: c.clb,
+      goal: u.goal,
+      focus: u.focus,
+      pattern: u.pattern,
+      lesson_id: u.lessonId ?? null,
+    })),
+  );
+  const uErr = await upsertRows("units", units, "unit");
+  if (uErr) return "學習地圖上傳失敗:" + uErr;
+  return `✓ 已上傳 ${units.length} 單元地圖、${vocabBank.length} 單字、${lessons.length} 句型課到資料庫`;
 }

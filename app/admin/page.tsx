@@ -68,7 +68,7 @@ export default function AdminPage() {
         <div className="card mb-4 flex flex-wrap items-center gap-3 p-4">
           <div className="min-w-0 flex-1">
             <div className="text-sm font-semibold text-slate-300">把種子內容上傳到資料庫</div>
-            <div className="text-xs text-slate-500">{hasSupabase ? "把程式內建的單字 + 句型課寫進 Supabase(可重複執行,以 upsert 更新)。" : "尚未設定 Supabase(NEXT_PUBLIC_SUPABASE_*),目前存 localStorage。"}</div>
+            <div className="text-xs text-slate-500">{hasSupabase ? "把程式內建的學習地圖 + 單字 + 句型課寫進 Supabase(可重複執行,以 upsert 更新)。" : "尚未設定 Supabase(NEXT_PUBLIC_SUPABASE_*),目前存 localStorage。"}</div>
           </div>
           <button onClick={seed} disabled={!hasSupabase || seeding} className="btn-primary">{seeding ? "上傳中…" : "⬆ 上傳種子"}</button>
           {seedMsg && <div className="w-full text-sm text-accent">{seedMsg}</div>}

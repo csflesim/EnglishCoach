@@ -43,6 +43,21 @@ alter table patterns enable row level security;
 drop policy if exists "patterns anon all" on patterns;
 create policy "patterns anon all" on patterns for all using (true) with check (true);
 
+-- 學習地圖:FSI 30 單元(三週期),lesson_id 指向 patterns
+create table if not exists units (
+  unit int primary key,
+  cycle int not null,
+  cycle_title text not null,
+  clb text not null,
+  goal text not null,
+  focus text not null,
+  pattern text not null,
+  lesson_id text
+);
+alter table units enable row level security;
+drop policy if exists "units anon all" on units;
+create policy "units anon all" on units for all using (true) with check (true);
+
 -- 詞本(多本):每本一列,單詞存 words jsonb 陣列
 create table if not exists wordbooks (
   name text primary key,

@@ -77,6 +77,7 @@ cue（播放提示）
 | **wordbooks** | `name` (PK)、`words` (jsonb)、`created_at` | 詞本(英文單字清單,可多本) | ✅ 讀寫 |
 | **vocabulary** | `id`、`word`、`native_zh`、`category`、`source`、`created_at`(unique word+category) | 單字種子複本(後台「⬆ 上傳種子」寫入) | 📥 已上傳;app 仍讀程式內 `vocabBank`,此表供管理/日後讀取 |
 | **patterns** | `id`、`unit`、`pattern_text`、`transform_frame`、`drills` (jsonb)、`created_at` | 句型課種子複本 | 📥 同上 |
+| **units** | `unit` (PK)、`cycle`、`cycle_title`、`clb`、`goal`、`focus`、`pattern`、`lesson_id` | 學習地圖(30 單元三週期)種子複本 | 📥 同上 |
 | **pattern_vocab** | `id`、`word`、`native_zh`、`category`、`pos`、`source`(unique word+category) | **句型詞庫**:AI 分類詞本後的單字(分類+中文) | ⏳ 待 AI 分類跑入 |
 
 - **RLS**:自用版全部「**匿名可讀寫**」(個人工具最簡;多人前須改 Supabase Auth + 嚴格 policy)。
