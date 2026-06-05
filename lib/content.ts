@@ -17,7 +17,7 @@ import {
   type Cycle,
   type Unit,
 } from "./mock";
-import { hasSupabase, selectAll, selectIn, upsertRows, deleteWhere, countContains, pageVocabByBook } from "./supabase";
+import { hasSupabase, selectAll, selectIn, upsertRows, deleteWhere, countContains, countRows, pageVocabByBook } from "./supabase";
 
 type CycleRow = { cycle: number; title: string; clb: string };
 type UnitRow = { unit: number; cycle: number; goal: string; focus: string; pattern: string; lesson_id: string | null };
@@ -119,7 +119,7 @@ export async function removeWordbook(name: string): Promise<void> {
 }
 export async function wordbookCount(name: string): Promise<number> {
   if (!hasSupabase) return 0;
-  return countContains("vocabulary", "wordbooks", name);
+  return name === "ALL" ? countRows("vocabulary") : countContains("vocabulary", "wordbooks", name);
 }
 export type VocabView = { word: string; native_zh: string; categories: string[]; pos: string | null };
 export async function getBookWords(name: string, offset = 0, limit = 60, search = ""): Promise<VocabView[]> {

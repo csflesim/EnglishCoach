@@ -86,7 +86,8 @@ export async function pageVocabByBook<T = Record<string, unknown>>(name: string,
   const c = sb();
   if (!c) return [];
   try {
-    let q = c.from("vocabulary").select("word,native_zh,categories,pos").contains("wordbooks", [name]).order("word").range(offset, offset + limit - 1);
+    let q = c.from("vocabulary").select("word,native_zh,categories,pos").order("word").range(offset, offset + limit - 1);
+    if (name !== "ALL") q = q.contains("wordbooks", [name]); // ALL = 全部單字,不篩
     if (search) q = q.ilike("word", `%${search}%`);
     const { data } = await q;
     return (data ?? []) as T[];
