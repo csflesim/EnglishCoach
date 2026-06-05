@@ -5,13 +5,10 @@
 // ──────────────────────────────────────────────────────────────────────────
 
 import {
-  addVocabRuntime,
-  removeVocabRuntime,
   addFrameRuntime,
   removeFrameRuntime,
   vocabBank,
   lessons,
-  type VocabWord,
   type SubFrame,
 } from "./mock";
 import { hasSupabase, kvGet, kvSet, upsertRows, selectAll, deleteWhere } from "./supabase";
@@ -20,21 +17,19 @@ const LKEY = "erc_content_v1";
 
 export type WordBook = { name: string; words: string[] };
 type Overrides = {
-  vocab: VocabWord[];
-  frames: Record<string, SubFrame[]>;
-  wordbooks: WordBook[];
+  frames: Record<string, SubFrame[]>; // 後台新增的句框(seed 以外)
+  wordbooks: WordBook[]; // 僅非 Supabase 模式用;Supabase 走 wordbooks 表
 };
 
 function blank(): Overrides {
-  return { vocab: [], frames: {}, wordbooks: [] };
+  return { frames: {}, wordbooks: [] };
 }
 
 function readLocal(): Overrides {
   if (typeof window === "undefined") return blank();
   try {
     const o = JSON.parse(localStorage.getItem(LKEY) || "{}");
-    const wordbooks: WordBook[] = o.wordbooks ?? (Array.isArray(o.wordbook) && o.wordbook.length ? [{ name: "我的詞本", words: o.wordbook }] : []);
-    return { vocab: o.vocab ?? [], frames: o.frames ?? {}, wordbooks };
+    return { frames: o.frames ?? {}, wordbooks: o.wordbooks ?? [] };
   } catch {
     return blank();
   }
@@ -69,41 +64,16 @@ export async function initContent(): Promise<void> {
   } else {
     cache = readLocal();
   }
-  cache.vocab.forEach(addVocabRuntime);
   Object.entries(cache.frames).forEach(([lessonId, frames]) => frames.forEach((f) => addFrameRuntime(lessonId, f)));
   // 詞本:Supabase 有獨立資料表;否則用本機 content blob 內的 wordbooks
   if (hasSupabase) {
     const rows = await selectAll<{ name: string; words: string[] }>("wordbooks");
     wbCache = rows.map((r) => ({ name: r.name, words: Array.isArray(r.words) ? r.words : [] }));
+    cache.wordbooks = []; // 雲端詞本走獨立表,清掉 content blob 的舊殘留
+    persist();
   } else {
     wbCache = cache.wordbooks;
   }
-}
-
-// ── 單字 ──
-export function addVocab(w: VocabWord) {
-  const o = cur();
-  if (!o.vocab.some((v) => v.word === w.word && v.category === w.category)) {
-    o.vocab.push(w);
-    persist();
-    addVocabRuntime(w);
-  }
-}
-export function removeVocab(word: string, category: string) {
-  const o = cur();
-  o.vocab = o.vocab.filter((v) => !(v.word === word && v.category === category));
-  persist();
-  removeVocabRuntime(word, category);
-}
-export function addVocabBulk(list: VocabWord[]): number {
-  let n = 0;
-  for (const w of list) {
-    if (w.word?.trim() && w.nativeZh?.trim() && w.category?.trim()) {
-      addVocab({ word: w.word.trim(), nativeZh: w.nativeZh.trim(), category: w.category.trim() });
-      n++;
-    }
-  }
-  return n;
 }
 
 // ── 句框 ──
@@ -118,16 +88,6 @@ export function removeFrame(lessonId: string, frame: string) {
   o.frames[lessonId] = (o.frames[lessonId] ?? []).filter((x) => x.frame !== frame);
   persist();
   removeFrameRuntime(lessonId, frame);
-}
-export function addFramesBulk(lessonId: string, frames: SubFrame[]): number {
-  let n = 0;
-  for (const f of frames) {
-    if (f.frame?.includes("___") && f.frameZh?.includes("___") && f.category?.trim()) {
-      addFrame(lessonId, { frame: f.frame.trim(), frameZh: f.frameZh.trim(), category: f.category.trim() });
-      n++;
-    }
-  }
-  return n;
 }
 
 // ── 詞本(多本)── Supabase 有獨立 wordbooks 表;否則存本機 content blob。

@@ -381,28 +381,14 @@ export const vocabBank: VocabWord[] = [
   { word: "name", nativeZh: "名字", category: "my_things" },
 ];
 
-// ── 執行期內容覆蓋層（後台新增的單字/句框；由 content.ts 注入並存 localStorage）──
-const extraVocab: VocabWord[] = [];
+// ── 執行期內容覆蓋層（後台新增的句框；由 content.ts 注入並存資料庫/localStorage）──
 const extraFrames: Record<string, SubFrame[]> = {};
 
-export function allVocab(): VocabWord[] {
-  return vocabBank.concat(extraVocab);
-}
 export function vocabByCategory(category: string) {
-  return allVocab().filter((v) => v.category === category);
+  return vocabBank.filter((v) => v.category === category);
 }
 export function vocabCategories(): string[] {
-  return Array.from(new Set(allVocab().map((v) => v.category))).sort();
-}
-export function addVocabRuntime(w: VocabWord) {
-  extraVocab.push(w);
-}
-export function removeVocabRuntime(word: string, category: string) {
-  const i = extraVocab.findIndex((v) => v.word === word && v.category === category);
-  if (i >= 0) extraVocab.splice(i, 1);
-}
-export function isExtraVocab(word: string, category: string) {
-  return extraVocab.some((v) => v.word === word && v.category === category);
+  return Array.from(new Set(vocabBank.map((v) => v.category))).sort();
 }
 
 // 一課的所有句框 = 種子(substitution) + 後台新增(extraFrames)

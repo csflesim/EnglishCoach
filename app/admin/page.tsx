@@ -11,18 +11,11 @@ import {
   vocabCategories,
   subFrameCount,
   isExtraFrame,
-  isExtraVocab,
-  type SubFrame,
-  type VocabWord,
 } from "@/lib/mock";
 import {
   initContent,
   addFrame,
   removeFrame,
-  addVocab,
-  removeVocab,
-  addVocabBulk,
-  addFramesBulk,
   getWordbooks,
   createWordbook,
   removeWordbook,
@@ -33,7 +26,7 @@ import {
 } from "@/lib/content";
 import { hasSupabase } from "@/lib/supabase";
 
-type Tab = "patterns" | "vocab" | "wordbook" | "bulk";
+type Tab = "patterns" | "wordbook";
 
 export default function AdminPage() {
   const [, setTick] = useState(0);
@@ -151,55 +144,6 @@ function PatternsAdmin({ onChange }: { onChange: () => void }) {
   );
 }
 
-// ─────────── 單字庫管理 ───────────
-function VocabAdmin({ onChange }: { onChange: () => void }) {
-  const cats = vocabCategories();
-  const [category, setCategory] = useState(cats[0] ?? "");
-  const [word, setWord] = useState("");
-  const [nativeZh, setNativeZh] = useState("");
-  const words = vocabByCategory(category);
-
-  function add() {
-    if (!word.trim() || !nativeZh.trim() || !category) return;
-    addVocab({ word: word.trim(), nativeZh: nativeZh.trim(), category });
-    setWord(""); setNativeZh(""); onChange();
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="card p-4">
-        <label className="text-xs text-slate-500">分類({cats.length})</label>
-        <select value={category} onChange={(e) => setCategory(e.target.value)} className="mt-1 w-full rounded-xl border border-ink-700 bg-ink-900/60 px-3 py-2.5 text-sm text-slate-200 outline-none">
-          {cats.map((c) => <option key={c} value={c}>{c}（{vocabByCategory(c).length} 字）</option>)}
-        </select>
-        {words.length < 20 && <p className="mt-2 text-xs text-gold">⚠ 此分類只有 {words.length} 字,建議補到 20。</p>}
-      </div>
-      <div className="card p-4">
-        <div className="mb-2 text-sm font-semibold text-slate-300">{category} · {words.length} 字</div>
-        <div className="flex flex-wrap gap-2">
-          {words.map((w) => (
-            <span key={w.word + w.category} className={`chip ${isExtraVocab(w.word, w.category) ? "bg-accent/15 text-accent" : "bg-ink-800 text-slate-300"}`}>
-              {w.word} / {w.nativeZh}
-              {isExtraVocab(w.word, w.category) && <button onClick={() => { removeVocab(w.word, w.category); onChange(); }} className="ml-1 text-red-400">✕</button>}
-            </span>
-          ))}
-        </div>
-      </div>
-      <div className="card p-4">
-        <div className="mb-2 text-sm font-semibold text-slate-300">新增單字</div>
-        <div className="space-y-2">
-          <input value={word} onChange={(e) => setWord(e.target.value)} placeholder="英文,例：a sandwich" className="w-full rounded-xl border border-ink-700 bg-ink-900/60 px-3 py-2.5 text-sm text-slate-200 outline-none placeholder:text-slate-600" />
-          <input value={nativeZh} onChange={(e) => setNativeZh(e.target.value)} placeholder="中文,例：三明治" className="w-full rounded-xl border border-ink-700 bg-ink-900/60 px-3 py-2.5 text-sm text-slate-200 outline-none placeholder:text-slate-600" />
-          <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full rounded-xl border border-ink-700 bg-ink-900/60 px-3 py-2.5 text-sm text-slate-200 outline-none">
-            {cats.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-          <button onClick={add} className="btn-primary w-full">+ 新增單字</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─────────── 詞本（多本、具名，只存英文單詞）───────────
 function WordbookAdmin({ onChange }: { onChange: () => void }) {
   const books = getWordbooks();
@@ -303,101 +247,3 @@ function WordbookAdmin({ onChange }: { onChange: () => void }) {
   );
 }
 
-// ─────────── 批量上傳 ───────────
-function parseTriples(text: string): { a: string; b: string; c: string }[] {
-  const t = text.trim();
-  if (!t) return [];
-  if (t.startsWith("[") || t.startsWith("{")) {
-    try {
-      const j = JSON.parse(t);
-      const arr = Array.isArray(j) ? j : [j];
-      return arr.map((o: Record<string, unknown>) => ({
-        a: String(o.word ?? o.frame ?? o.a ?? "").trim(),
-        b: String(o.nativeZh ?? o.frameZh ?? o.b ?? "").trim(),
-        c: String(o.category ?? o.c ?? "").trim(),
-      }));
-    } catch {
-      return [];
-    }
-  }
-  return t.split(/\r?\n/).map((line) => line.split(",")).filter((p) => p.length >= 3).map((p) => ({ a: p[0].trim(), b: p[1].trim(), c: p.slice(2).join(",").trim() }));
-}
-
-function BulkAdmin({ onChange }: { onChange: () => void }) {
-  const ids = builtLessonIds();
-  const [target, setTarget] = useState<"vocab" | "frames">("vocab");
-  const [lessonId, setLessonId] = useState(ids[0] ?? lessons[0].id);
-  const [text, setText] = useState("");
-  const [msg, setMsg] = useState("");
-
-  const rows = parseTriples(text);
-  const valid = target === "vocab"
-    ? rows.filter((r) => r.a && r.b && r.c)
-    : rows.filter((r) => r.a.includes("___") && r.b.includes("___") && r.c);
-
-  function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    f.text().then((t) => setText(t));
-  }
-  function doImport() {
-    let n = 0;
-    if (target === "vocab") {
-      n = addVocabBulk(valid.map<VocabWord>((r) => ({ word: r.a, nativeZh: r.b, category: r.c })));
-    } else {
-      n = addFramesBulk(lessonId, valid.map<SubFrame>((r) => ({ frame: r.a, frameZh: r.b, category: r.c })));
-    }
-    setMsg(`已匯入 ${n} 筆`);
-    setText("");
-    onChange();
-  }
-
-  const placeholder = target === "vocab"
-    ? "每行一筆：英文,中文,分類\n例：\na sandwich,三明治,need_buy\na salad,沙拉,need_buy\n\n或貼 JSON：[{\"word\":\"a sandwich\",\"nativeZh\":\"三明治\",\"category\":\"need_buy\"}]"
-    : "每行一筆：英文句框,中文模板,分類（都要含 ___）\n例：\nI want to eat ___.,我想吃 ___。,need_buy\n\n或貼 JSON：[{\"frame\":\"I want to eat ___.\",\"frameZh\":\"我想吃 ___。\",\"category\":\"need_buy\"}]";
-
-  return (
-    <div className="space-y-4">
-      <div className="card p-4">
-        <div className="mb-2 text-sm font-semibold text-slate-300">批量上傳目標</div>
-        <div className="flex gap-2">
-          <button onClick={() => setTarget("vocab")} className={target === "vocab" ? "btn-primary" : "btn-ghost"}>單字庫</button>
-          <button onClick={() => setTarget("frames")} className={target === "frames" ? "btn-primary" : "btn-ghost"}>句型(句框)</button>
-        </div>
-        {target === "frames" && (
-          <select value={lessonId} onChange={(e) => setLessonId(e.target.value)} className="mt-3 w-full rounded-xl border border-ink-700 bg-ink-900/60 px-3 py-2.5 text-sm text-slate-200 outline-none">
-            {ids.map((id) => <option key={id} value={id}>加到 Unit {getLesson(id).unit} · {getLesson(id).patternText}</option>)}
-          </select>
-        )}
-      </div>
-
-      <div className="card p-4">
-        <div className="mb-2 flex items-center justify-between">
-          <span className="text-sm font-semibold text-slate-300">貼上 CSV 或 JSON</span>
-          <label className="chip cursor-pointer bg-ink-700 text-slate-300">
-            選檔(.csv/.json)
-            <input type="file" accept=".csv,.json,text/csv,application/json" onChange={onFile} className="hidden" />
-          </label>
-        </div>
-        <textarea value={text} onChange={(e) => setText(e.target.value)} rows={8} placeholder={placeholder} className="w-full resize-y rounded-xl border border-ink-700 bg-ink-900/60 px-3 py-2.5 font-mono text-xs text-slate-200 outline-none placeholder:text-slate-600" />
-        <div className="mt-2 flex items-center justify-between">
-          <span className="text-xs text-slate-500">解析到 <span className="text-slate-200">{valid.length}</span> 筆有效{rows.length > valid.length ? `(${rows.length - valid.length} 筆格式不符略過)` : ""}</span>
-          <button onClick={doImport} disabled={!valid.length} className="btn-primary">匯入 {valid.length} 筆</button>
-        </div>
-        {msg && <p className="mt-2 text-sm text-accent">{msg}</p>}
-      </div>
-
-      {/* 預覽 */}
-      {valid.length > 0 && (
-        <div className="card p-4">
-          <div className="mb-2 text-sm font-semibold text-slate-300">預覽(前 10 筆)</div>
-          <ul className="space-y-1 text-xs">
-            {valid.slice(0, 10).map((r, i) => (
-              <li key={i} className="flex gap-2 text-slate-300"><code className="text-slate-100">{r.a}</code><span className="text-slate-500">/ {r.b} / {r.c}</span></li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
-  );
-}
