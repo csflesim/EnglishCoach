@@ -16,7 +16,7 @@ import {
   type DrillType,
   type Step,
 } from "@/lib/mock";
-import { loadProgress, markMode, lessonProgress, recommendNextLessonId, type ProgressMap } from "@/lib/progress";
+import { initProgress, markMode, lessonProgress, recommendNextLessonId, type ProgressMap } from "@/lib/progress";
 import { initContent } from "@/lib/content";
 import { transcribe, evaluate, type EvalResult } from "@/lib/ai";
 
@@ -376,8 +376,8 @@ export default function TrainingPage() {
     setMode("select");
   }
   useEffect(() => () => { clearTimers(); closeMic(); }, []);
-  useEffect(() => { setProgress(loadProgress()); }, []);
-  useEffect(() => { initContent(); setContentTick((t) => t + 1); }, []);
+  useEffect(() => { initProgress().then(setProgress); }, []);
+  useEffect(() => { initContent().then(() => setContentTick((t) => t + 1)); }, []);
 
   // ─────────── HOME ───────────
   if (mode === "home") {

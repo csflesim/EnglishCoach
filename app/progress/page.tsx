@@ -3,11 +3,11 @@
 import { useEffect, useState } from "react";
 import Shell from "@/components/Shell";
 import { progress as baseStats, learningPath, getLesson } from "@/lib/mock";
-import { loadProgress, lessonProgress, type ProgressMap } from "@/lib/progress";
+import { initProgress, lessonProgress, type ProgressMap } from "@/lib/progress";
 
 export default function ProgressPage() {
   const [p, setP] = useState<ProgressMap>({});
-  useEffect(() => setP(loadProgress()), []);
+  useEffect(() => { initProgress().then(setP); }, []);
 
   const readyIds = learningPath.flatMap((c) => c.units.filter((u) => u.lessonId).map((u) => u.lessonId!));
   const mastered = readyIds.filter((id) => lessonProgress(p, getLesson(id)).mastered).length;
