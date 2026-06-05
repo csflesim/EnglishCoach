@@ -20,6 +20,7 @@ import { initProgress, markMode, lessonProgress, recommendNextLessonId, type Pro
 import { initContent } from "@/lib/content";
 import { transcribe, evaluate, type EvalResult } from "@/lib/ai";
 import { logReview } from "@/lib/review";
+import { logSession } from "@/lib/practice";
 
 type Mode = "home" | "select" | "selectSub" | "selectTransFrame" | "selectOp" | "running" | "complete";
 type RunPhase = "groupIntro" | "cue" | "listening" | "speaking" | "reveal";
@@ -348,7 +349,12 @@ export default function TrainingPage() {
     clearTimers();
     try { window.speechSynthesis?.cancel(); } catch {}
     closeMic();
-    setDurationSec((Date.now() - startRef.current) / 1000);
+    const dur = (Date.now() - startRef.current) / 1000;
+    setDurationSec(dur);
+    // 寫入真實練習紀錄(供「我的」頁 + 打卡日曆)
+    const ts = timesRef.current;
+    const avg = ts.length ? ts.reduce((a, b) => a + b, 0) / ts.length : null;
+    logSession({ duration_sec: dur, drill_type: drillType, lesson_id: selectedId, reps: stepsRef.current.length, avg_reaction: avg });
     // 記錄完成的模式 → 推進學習地圖
     const np = markMode(progressRef.current, selectedId, drillType);
     setProgress(np);

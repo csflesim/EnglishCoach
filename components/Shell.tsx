@@ -7,7 +7,7 @@ const nav = [
   { href: "/", label: "訓練", en: "Training", icon: "⚡" },
   { href: "/words", label: "單詞", en: "Words", icon: "🔤" },
   { href: "/sentences", label: "句子", en: "Sentences", icon: "💬" },
-  { href: "/progress", label: "進度", en: "Progress", icon: "▤" },
+  { href: "/progress", label: "我的", en: "Mine", icon: "▤" },
 ];
 
 export default function Shell({ children }: { children: React.ReactNode }) {
