@@ -10,25 +10,21 @@ import {
   vocabByCategory,
   vocabCategories,
   subFrameCount,
-  isExtraFrame,
 } from "@/lib/mock";
 import {
   initContent,
   addFrame,
   removeFrame,
-  getWordbooks,
+  getWordbookNames,
   createWordbook,
   removeWordbook,
-  addWordToBook,
-  removeWordFromBook,
   addWordsToBook,
+  wordbookCount,
   seedToDb,
-  patternVocabCount,
-  patternVocabTotal,
 } from "@/lib/content";
 import { hasSupabase } from "@/lib/supabase";
 
-type Tab = "patterns" | "wordbook" | "patternvocab";
+type Tab = "patterns" | "wordbook";
 
 export default function AdminPage() {
   const [, setTick] = useState(0);
@@ -46,7 +42,6 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-ink-950">
-      {/* 後台專屬頂列（與前台分開）*/}
       <header className="sticky top-0 z-10 border-b border-ink-700 bg-ink-900/95 backdrop-blur">
         <div className="mx-auto flex max-w-4xl items-center gap-3 px-4 py-3">
           <span className="grid h-8 w-8 place-items-center rounded-lg bg-gold text-sm font-black text-ink-950">⚙</span>
@@ -57,7 +52,7 @@ export default function AdminPage() {
           <Link href="/" className="btn-ghost ml-auto px-3 py-1.5 text-xs">← 回前台</Link>
         </div>
         <div className="mx-auto flex max-w-4xl gap-1 px-4 pb-2">
-          {([["patterns", "句型管理"], ["wordbook", "詞本"], ["patternvocab", "句型詞庫"]] as [Tab, string][]).map(([t, label]) => (
+          {([["patterns", "句型管理"], ["wordbook", "詞本"]] as [Tab, string][]).map(([t, label]) => (
             <button key={t} onClick={() => setTab(t)} className={`rounded-lg px-3 py-1.5 text-sm ${tab === t ? "bg-accent text-ink-950 font-semibold" : "text-slate-400 hover:bg-ink-800"}`}>{label}</button>
           ))}
         </div>
@@ -68,7 +63,7 @@ export default function AdminPage() {
         <div className="card mb-4 flex flex-wrap items-center gap-3 p-4">
           <div className="min-w-0 flex-1">
             <div className="text-sm font-semibold text-slate-300">把種子內容上傳到資料庫</div>
-            <div className="text-xs text-slate-500">{hasSupabase ? "把程式內建的學習地圖 + 單字 + 句型課寫進 Supabase(可重複執行,以 upsert 更新)。" : "尚未設定 Supabase(NEXT_PUBLIC_SUPABASE_*),目前存 localStorage。"}</div>
+            <div className="text-xs text-slate-500">{hasSupabase ? "把程式內建的學習地圖 + 單字 + 句型寫進 Supabase(cycles/units/patterns/vocabulary,可重複執行)。" : "尚未設定 Supabase(NEXT_PUBLIC_SUPABASE_*),目前存 localStorage。"}</div>
           </div>
           <button onClick={seed} disabled={!hasSupabase || seeding} className="btn-primary">{seeding ? "上傳中…" : "⬆ 上傳種子"}</button>
           {seedMsg && <div className="w-full text-sm text-accent">{seedMsg}</div>}
@@ -80,7 +75,6 @@ export default function AdminPage() {
           <>
             {tab === "patterns" && <PatternsAdmin onChange={refresh} />}
             {tab === "wordbook" && <WordbookAdmin onChange={refresh} />}
-            {tab === "patternvocab" && <PatternVocabAdmin />}
           </>
         )}
       </main>
@@ -101,9 +95,9 @@ function PatternsAdmin({ onChange }: { onChange: () => void }) {
   const [category, setCategory] = useState(cats[0] ?? "");
   const frames = framesOf(lesson);
 
-  function add() {
+  async function add() {
     if (!frame.includes("___") || !frameZh.includes("___") || !category) return;
-    addFrame(lessonId, { frame: frame.trim(), frameZh: frameZh.trim(), category });
+    await addFrame(lessonId, { frame: frame.trim(), frameZh: frameZh.trim(), category });
     setFrame(""); setFrameZh(""); onChange();
   }
 
@@ -124,9 +118,7 @@ function PatternsAdmin({ onChange }: { onChange: () => void }) {
                 <code className="text-sm text-slate-100">{f.frame}</code>
                 <div className="text-xs text-slate-500">{f.frameZh} · {f.category} · {subFrameCount(f)} 字</div>
               </div>
-              {isExtraFrame(lessonId, f.frame)
-                ? <button onClick={() => { removeFrame(lessonId, f.frame); onChange(); }} className="chip bg-red-500/15 text-[10px] text-red-400">刪除</button>
-                : <span className="chip bg-ink-700 text-[10px] text-slate-500">種子</span>}
+              <button onClick={async () => { await removeFrame(lessonId, f.frame); onChange(); }} className="chip bg-red-500/15 text-[10px] text-red-400">刪除</button>
             </li>
           ))}
         </ul>
@@ -147,29 +139,33 @@ function PatternsAdmin({ onChange }: { onChange: () => void }) {
   );
 }
 
-// ─────────── 詞本（多本、具名，只存英文單詞）───────────
+// ─────────── 詞本（只存名稱;單字進 vocabulary + wordbook_vocab）───────────
 function WordbookAdmin({ onChange }: { onChange: () => void }) {
-  const books = getWordbooks();
+  const names = getWordbookNames();
   const [newName, setNewName] = useState("");
-  const [selected, setSelected] = useState<string | null>(books[0]?.name ?? null);
-  const [word, setWord] = useState("");
+  const [selected, setSelected] = useState<string | null>(names[0] ?? null);
   const [bulk, setBulk] = useState("");
   const [msg, setMsg] = useState("");
+  const [count, setCount] = useState<number | null>(null);
 
-  const book = books.find((b) => b.name === selected) ?? books[0] ?? null;
+  const book = selected && names.includes(selected) ? selected : names[0] ?? null;
+
+  useEffect(() => {
+    let on = true;
+    if (book) wordbookCount(book).then((c) => on && setCount(c));
+    else setCount(null);
+    return () => { on = false; };
+  }, [book, msg]);
 
   async function create() {
     const n = newName.trim();
     if (await createWordbook(n)) { setNewName(""); setSelected(n); onChange(); }
   }
-  async function one() {
-    if (book && (await addWordToBook(book.name, word))) { setWord(""); onChange(); }
-  }
   async function many() {
     if (!book) return;
     const list = bulk.split(/[\n,]/).map((w) => w.trim()).filter(Boolean);
-    const n = await addWordsToBook(book.name, list);
-    setMsg(`已新增 ${n} 個單詞`);
+    const n = await addWordsToBook(book, list);
+    setMsg(`已新增 ${n} 個單詞到「${book}」`);
     setBulk("");
     onChange();
   }
@@ -180,7 +176,6 @@ function WordbookAdmin({ onChange }: { onChange: () => void }) {
 
   return (
     <div className="space-y-4">
-      {/* 新增詞本 */}
       <div className="card p-4">
         <div className="mb-2 text-sm font-semibold text-slate-300">新增詞本</div>
         <div className="flex gap-2">
@@ -189,15 +184,14 @@ function WordbookAdmin({ onChange }: { onChange: () => void }) {
         </div>
       </div>
 
-      {/* 詞本清單(可選) */}
-      {books.length > 0 && (
+      {names.length > 0 && (
         <div className="card p-4">
-          <div className="mb-2 text-sm font-semibold text-slate-300">我的詞本({books.length})</div>
+          <div className="mb-2 text-sm font-semibold text-slate-300">我的詞本({names.length})</div>
           <div className="flex flex-wrap gap-2">
-            {books.map((b) => (
-              <button key={b.name} onClick={() => setSelected(b.name)} className={`chip ${book?.name === b.name ? "bg-accent text-ink-950" : "bg-ink-800 text-slate-300"}`}>
-                {b.name}({b.words.length})
-                <span onClick={async (e) => { e.stopPropagation(); if (confirm(`刪除詞本「${b.name}」?`)) { await removeWordbook(b.name); if (selected === b.name) setSelected(null); onChange(); } }} className="ml-1 text-red-400">✕</span>
+            {names.map((n) => (
+              <button key={n} onClick={() => setSelected(n)} className={`chip ${book === n ? "bg-accent text-ink-950" : "bg-ink-800 text-slate-300"}`}>
+                {n}
+                <span onClick={async (e) => { e.stopPropagation(); if (confirm(`刪除詞本「${n}」?(字仍留在單字庫)`)) { await removeWordbook(n); if (selected === n) setSelected(null); onChange(); } }} className="ml-1 text-red-400">✕</span>
               </button>
             ))}
           </div>
@@ -207,75 +201,19 @@ function WordbookAdmin({ onChange }: { onChange: () => void }) {
       {!book ? (
         <p className="text-center text-sm text-slate-500">先建立一個詞本,再上傳單字。</p>
       ) : (
-        <>
-          {/* 單一新增 */}
-          <div className="card p-4">
-            <div className="mb-2 text-sm font-semibold text-slate-300">「{book.name}」· {book.words.length} 個單詞 — 新增</div>
-            <div className="flex gap-2">
-              <input value={word} onChange={(e) => setWord(e.target.value)} onKeyDown={(e) => e.key === "Enter" && one()} placeholder="英文單詞,例：boarding pass" className="flex-1 rounded-xl border border-ink-700 bg-ink-900/60 px-3 py-2.5 text-sm text-slate-200 outline-none placeholder:text-slate-600" />
-              <button onClick={one} className="btn-primary">+ 新增</button>
-            </div>
+        <div className="card p-4">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-sm font-semibold text-slate-300">批量上傳到「{book}」{count !== null && <span className="text-slate-500">· 目前 {count} 字</span>}</span>
+            <label className="chip cursor-pointer bg-ink-700 text-slate-300">選檔(.txt/.csv)<input type="file" accept=".txt,.csv,text/plain,text/csv" onChange={onFile} className="hidden" /></label>
           </div>
-
-          {/* 批量上傳 */}
-          <div className="card p-4">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="text-sm font-semibold text-slate-300">批量上傳到「{book.name}」(一行或逗號一個)</span>
-              <label className="chip cursor-pointer bg-ink-700 text-slate-300">選檔(.txt/.csv)<input type="file" accept=".txt,.csv,text/plain,text/csv" onChange={onFile} className="hidden" /></label>
-            </div>
-            <textarea value={bulk} onChange={(e) => setBulk(e.target.value)} rows={6} placeholder={"boarding pass\ngate\nlayover\ncarry-on"} className="w-full resize-y rounded-xl border border-ink-700 bg-ink-900/60 px-3 py-2.5 font-mono text-xs text-slate-200 outline-none placeholder:text-slate-600" />
-            <div className="mt-2 flex items-center justify-end gap-2">
-              {msg && <span className="text-sm text-accent">{msg}</span>}
-              <button onClick={many} className="btn-primary">匯入</button>
-            </div>
+          <p className="mb-2 text-xs text-slate-500">一行或逗號一個。字會存進共用單字庫(vocabulary)並連到此詞本;分類/中文之後由 AI 補。</p>
+          <textarea value={bulk} onChange={(e) => setBulk(e.target.value)} rows={6} placeholder={"boarding pass\ngate\nlayover\ncarry-on"} className="w-full resize-y rounded-xl border border-ink-700 bg-ink-900/60 px-3 py-2.5 font-mono text-xs text-slate-200 outline-none placeholder:text-slate-600" />
+          <div className="mt-2 flex items-center justify-end gap-2">
+            {msg && <span className="text-sm text-accent">{msg}</span>}
+            <button onClick={many} className="btn-primary">匯入</button>
           </div>
-
-          {/* 單詞清單 */}
-          {book.words.length > 0 && (
-            <div className="card p-4">
-              <div className="mb-2 text-sm font-semibold text-slate-300">單詞清單</div>
-              <div className="flex flex-wrap gap-2">
-                {book.words.map((w) => (
-                  <span key={w} className="chip bg-ink-800 text-slate-300">
-                    {w}
-                    <button onClick={async () => { await removeWordFromBook(book.name, w); onChange(); }} className="ml-1 text-red-400">✕</button>
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
-
-// ─────────── 句型詞庫(pattern_vocab)對應 ───────────
-function PatternVocabAdmin() {
-  return (
-    <div className="space-y-4">
-      <div className="card p-4">
-        <div className="text-sm font-semibold text-slate-300">句型詞庫 (pattern_vocab) · 共 {patternVocabTotal()} 字</div>
-        <p className="mt-1 text-xs text-slate-500">
-          由「AI 一次性分類詞本」產生(分類 + 中文)→ 存進 <code>pattern_vocab</code> 表。下表顯示每個句型的句框對應哪個分類,以及該分類目前在種子 / 句型詞庫各有幾個字。AI 分類待跑,跑完「句型詞庫」欄就會有數字。
-        </p>
-      </div>
-      {lessons.map((l) => (
-        <div key={l.id} className="card p-4">
-          <div className="mb-2 text-sm font-semibold text-accent">Unit {l.unit} · {l.patternText}</div>
-          <ul className="space-y-1.5">
-            {framesOf(l).map((f) => (
-              <li key={f.frame} className="flex flex-wrap items-center gap-2 text-sm">
-                <code className="min-w-0 flex-1 text-slate-200">{f.frame}</code>
-                <span className="chip bg-ink-700 text-slate-300">分類 {f.category}</span>
-                <span className="chip bg-ink-800 text-slate-500">種子 {vocabByCategory(f.category).length}</span>
-                <span className="chip bg-accent/15 text-accent">詞庫 {patternVocabCount(f.category)}</span>
-              </li>
-            ))}
-          </ul>
         </div>
-      ))}
+      )}
     </div>
   );
 }

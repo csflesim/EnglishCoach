@@ -1,8 +1,8 @@
-// 學習進度。雙模式:有 Supabase → kv("progress");否則 localStorage。
+// 學習進度。有 Supabase → progress 表(lesson_id, drill_type);否則 localStorage。
 // 讀取走記憶體 cache(同步);initProgress 載入、markMode 寫入。
 
 import { lessons, availableModes, type DrillType, type PatternLesson } from "./mock";
-import { hasSupabase, kvGet, kvSet } from "./supabase";
+import { hasSupabase, selectAll, upsertRows } from "./supabase";
 
 const LKEY = "erc_progress_v1";
 
@@ -35,19 +35,14 @@ export async function initProgress(): Promise<ProgressMap> {
   if (loaded) return cache ?? {};
   loaded = true;
   if (hasSupabase) {
-    const remote = await kvGet<ProgressMap>("progress");
-    cache = remote ?? readLocal();
-    if (!remote) persist();
+    const rows = await selectAll<{ lesson_id: string; drill_type: DrillType }>("progress");
+    const m: ProgressMap = {};
+    for (const r of rows) (m[r.lesson_id] = m[r.lesson_id] ?? []).push(r.drill_type);
+    cache = m;
   } else {
     cache = readLocal();
   }
   return cache;
-}
-
-function persist() {
-  const p = cache ?? {};
-  writeLocal(p);
-  if (hasSupabase) kvSet("progress", p);
 }
 
 // 標記某課的某模式已完成,回傳新的 map
@@ -56,7 +51,8 @@ export function markMode(p: ProgressMap, lessonId: string, mode: DrillType): Pro
   const done = new Set(base[lessonId] ?? []);
   done.add(mode);
   cache = { ...base, [lessonId]: Array.from(done) };
-  persist();
+  if (hasSupabase) upsertRows("progress", [{ lesson_id: lessonId, drill_type: mode }], "lesson_id,drill_type");
+  else writeLocal(cache);
   return cache;
 }
 
