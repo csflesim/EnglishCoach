@@ -627,6 +627,20 @@ const IRREG_PLURAL: Record<string, string> = {
   half: "halves", self: "selves", thief: "thieves", loaf: "loaves",
   fish: "fish", sheep: "sheep", deer: "deer", series: "series", species: "species",
 };
+// 冠詞 a/an 修正(依後字發音):母音音起頭用 an;含無聲 h(an hour)與子音音的 u/eu(a university)例外
+const AN_WORDS = ["hour", "honest", "honor", "honour", "heir", "honate"]; // 無聲 h → an
+const A_WORDS = ["university", "universe", "unit", "uniform", "unique", "user", "useful", "usual", "union", "universal", "unicorn", "european", "euro", "one", "once"]; // 子音音(yu/w)→ a
+function vowelSound(word: string): boolean {
+  const w = word.toLowerCase();
+  if (AN_WORDS.some((x) => w === x || w.startsWith(x))) return true;
+  if (A_WORDS.some((x) => w === x || w.startsWith(x))) return false;
+  return /^[aeiou]/.test(w);
+}
+function fixArticle(s: string): string {
+  return s.replace(/\b(a|A) ([A-Za-z]+)/g, (_m, art: string, word: string) =>
+    vowelSound(word) ? `${art === "A" ? "An" : "an"} ${word}` : `${art} ${word}`,
+  );
+}
 function pluralNoun(n: string): string {
   if (n === "___") return "___";
   const low = n.toLowerCase();
@@ -711,6 +725,7 @@ function renderSentence(f: SubFrame, p: PKey, wordEn: string, wordZh: string, op
     else if (op === "negative") en = `${subjCap} ${P}${is3 ? "doesn't" : "don't"} ${base}${tail}`;
     else en = `${subjCap} ${P}${is3 ? third(base) : base}${tail}`;
   }
+  en = fixArticle(en); // 冠詞 a/an 依後字發音修正
   if (Q) en = en.replace(/\.$/, "?");
   let native = f.frameZh.replace("{Sz}", s.zh).replace("___", wordZh);
   if (op === "question") native = native.replace(/。$/, "嗎?");
