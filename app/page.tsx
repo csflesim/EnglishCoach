@@ -601,6 +601,29 @@ export default function TrainingPage() {
   }
   useEffect(() => () => { clearTimers(); closeMic(); }, []);
   useEffect(() => { initProgress().then(setProgress); }, []);
+  // 開關狀態記憶(localStorage):載入一次,之後變動即存
+  const settingsLoaded = useRef(false);
+  useEffect(() => {
+    const get = (k: string, def: boolean) => { try { const v = localStorage.getItem(k); return v === null ? def : v === "1"; } catch { return def; } };
+    setUseMic(get("erc_mic", true));
+    setAudioOn(get("erc_audio", true));
+    setEchoLoop(get("erc_echo", false));
+    setAiOn(get("erc_ai", false));
+    setAiFilterOn(get("erc_aifilter", true));
+    setLocalMatchOn(get("erc_localmatch", true));
+    setWebSpeechOn(get("erc_webspeech", true));
+    setShowTranslation(get("erc_translation", false));
+    settingsLoaded.current = true;
+  }, []);
+  useEffect(() => {
+    if (!settingsLoaded.current) return;
+    try {
+      const set = (k: string, v: boolean) => localStorage.setItem(k, v ? "1" : "0");
+      set("erc_mic", useMic); set("erc_audio", audioOn); set("erc_echo", echoLoop);
+      set("erc_ai", aiOn); set("erc_aifilter", aiFilterOn); set("erc_localmatch", localMatchOn);
+      set("erc_webspeech", webSpeechOn); set("erc_translation", showTranslation);
+    } catch {}
+  }, [useMic, audioOn, echoLoop, aiOn, aiFilterOn, localMatchOn, webSpeechOn, showTranslation]);
   // 進入「完成」頁且本輪開了 AI → 自動對整輪做一次 AI 分析
   useEffect(() => {
     if (mode === "complete" && aiOn && !batchDoneRef.current) runSessionReview();
