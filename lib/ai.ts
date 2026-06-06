@@ -9,6 +9,18 @@ export type EvalResult = {
   weakness: string;
 };
 
+export type LearnAnalysis = { summary: string; tips: string[] };
+export async function analyzeLearning(data: unknown): Promise<LearnAnalysis | null> {
+  try {
+    const r = await fetch("/api/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+    const j = await r.json();
+    if (j.error || typeof j.summary !== "string") return null;
+    return { summary: j.summary, tips: Array.isArray(j.tips) ? j.tips : [] };
+  } catch {
+    return null;
+  }
+}
+
 export async function transcribe(blob: Blob): Promise<string | null> {
   try {
     const fd = new FormData();
