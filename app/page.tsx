@@ -77,6 +77,7 @@ export default function TrainingPage() {
   const [useMic, setUseMic] = useState(true);
   const [micError, setMicError] = useState(false);
   const [echoLoop, setEchoLoop] = useState(false);
+  const [showTranslation, setShowTranslation] = useState(false); // 提示時是否顯示中文(預設關)
   const [echoStep, setEchoStep] = useState<"t1" | "t1echo" | "nat" | "t2" | "t2echo" | null>(null);
   const [durationSec, setDurationSec] = useState(0);
   const [progress, setProgress] = useState<ProgressMap>({});
@@ -734,12 +735,14 @@ export default function TrainingPage() {
           <>
             <div className="text-xs uppercase tracking-widest text-slate-600">{step?.type === "Transformation" ? "改寫這句" : step?.type === "Response" ? "聽問題" : step?.type === "Expansion" ? "加進這個" : "替換提示 (Cue)"}</div>
             <div className="text-3xl font-bold text-gold">{step?.cue}</div>
+            {showTranslation && step?.nativeZh && <div className="text-base text-slate-400">{step.nativeZh}</div>}
             <div className="text-sm text-slate-500">🔊 播放提示中…</div>
           </>
         ) : phase === "listening" ? (
           <>
             <div className="text-xs uppercase tracking-widest text-slate-600">{step?.type === "Response" ? "直覺回答" : "現在開口！"}</div>
             <div className="text-3xl font-bold text-gold">{step?.cue}</div>
+            {showTranslation && step?.nativeZh && <div className="text-base text-slate-400">{step.nativeZh}</div>}
             <div className={`text-4xl font-black tabular-nums ${liveTimer > 3 ? "text-red-400" : liveTimer > 1.5 ? "text-gold" : "text-accent"}`}>{liveTimer.toFixed(1)}s</div>
             <div className="text-xs text-slate-500">⏱ 反應速度計時中（3 秒內開口為佳，不會打斷你）</div>
             {micRef.current ? (
@@ -799,6 +802,7 @@ export default function TrainingPage() {
       <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
         <button onClick={togglePause} className="btn-ghost">{paused ? "▶ 繼續" : "⏸ 暫停"}</button>
         <button onClick={() => setAudioOn((v) => !v)} className="btn-ghost">{audioOn ? "🔊 語音開" : "🔇 語音關"}</button>
+        <button onClick={() => setShowTranslation((v) => !v)} className="btn-ghost">{showTranslation ? "🌐 翻譯開" : "🌐 翻譯關"}</button>
         <button onClick={markWordUnknown} className="btn-ghost text-red-400">✗ 單詞不熟</button>
         <button onClick={markSentenceUnknown} className="btn-ghost text-red-400">✗ 句子不熟</button>
       </div>
