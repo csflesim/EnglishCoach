@@ -620,6 +620,23 @@ function gerund(v: string): string {
   if (/[^aeiou]e$/.test(v)) return v.slice(0, -1) + "ing";
   return v + "ing";
 }
+// 名詞複數(供「主詞為複數 + be + 述語名詞」時做數的一致,如 They are a man → They are men)
+const IRREG_PLURAL: Record<string, string> = {
+  man: "men", woman: "women", child: "children", person: "people", tooth: "teeth", foot: "feet",
+  mouse: "mice", goose: "geese", wife: "wives", life: "lives", knife: "knives", leaf: "leaves",
+  half: "halves", self: "selves", thief: "thieves", loaf: "loaves",
+  fish: "fish", sheep: "sheep", deer: "deer", series: "series", species: "species",
+};
+function pluralNoun(n: string): string {
+  if (n === "___") return "___";
+  const low = n.toLowerCase();
+  if (IRREG_PLURAL[low]) { const pl = IRREG_PLURAL[low]; return n[0] === n[0].toUpperCase() ? cap(pl) : pl; }
+  if (/(s|x|z|ch|sh)$/.test(low)) return n + "es";
+  if (/[^aeiou]y$/.test(low)) return n.slice(0, -1) + "ies";
+  if (/fe$/.test(low)) return n.slice(0, -2) + "ves";
+  if (/[^aeiou]f$/.test(low)) return n.slice(0, -1) + "ves";
+  return n + "s";
+}
 // 取得句框的 動詞base + 變數後綴(tail)
 type Kind = "be" | "modal" | "verb" | "perfect" | "passive";
 function frameParts(f: SubFrame, wordEn: string): { kind: Kind; base: string; pre: string; tail: string } {
@@ -643,8 +660,18 @@ function renderSentence(f: SubFrame, p: PKey, wordEn: string, wordZh: string, op
   const subjLow = p === "I" ? "I" : s.en.toLowerCase();
   const is3 = p === "he" || p === "she" || p === "it";
   const Q = op === "question";
-  const { kind, base, pre, tail } = frameParts(f, wordEn);
+  const { kind, base, pre, tail: tail0 } = frameParts(f, wordEn);
+  let tail = tail0;
   const P = pre; // 前置副詞(可空)
+  // 數的一致:複數主詞(we/they)+ be + 緊接的述語名詞「a/an X」→ 去冠詞、名詞變複數
+  if ((p === "we" || p === "they") && kind === "be") {
+    const m = tail.match(/^(\s*)an?\s+(.+?)([.?!]*)$/);
+    if (m) {
+      const words = m[2].split(" ");
+      words[words.length - 1] = pluralNoun(words[words.length - 1]);
+      tail = `${m[1]}${words.join(" ")}${m[3]}`;
+    }
+  }
   let en = "";
   // op 各自獨立:present / question(現在疑問)/ past / future / negative(現在否定)
   if (kind === "be") {
