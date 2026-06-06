@@ -77,6 +77,9 @@ export default function TrainingPage() {
   const [phase, setPhase] = useState<RunPhase>("cue");
   const [liveTimer, setLiveTimer] = useState(0);
   const [reaction, setReaction] = useState(0);
+  const reactionRef = useRef(0); // 反應時間(開口那刻)— 供 endSpeaking 讀最新值,避免閉包讀到舊 state
+  // 設定反應時間(只記第一次開口,單位秒);同步 state(顯示)與 ref(邏輯)
+  function markReaction(sec: number) { reactionRef.current = sec; setReaction(sec); }
   const [paused, setPaused] = useState(false);
   const [audioOn, setAudioOn] = useState(true);
   const [useMic, setUseMic] = useState(true);
@@ -97,6 +100,7 @@ export default function TrainingPage() {
   const [sessionAi, setSessionAi] = useState<SessionReview | null>(null);
   const [sessionAiLoading, setSessionAiLoading] = useState(false);
   const [sessionAiMsg, setSessionAiMsg] = useState("");
+  const [sessionVerdicts, setSessionVerdicts] = useState<{ correct: boolean; errors: string[] }[]>([]); // 每發對錯(與 reps 對齊)
   const repsRef = useRef<SessionRep[]>([]); // 本輪收集的每一發(供結束後 AI 分析)
   const batchDoneRef = useRef(false); // 防止整輪分析重複執行
   const progressRef = useRef<ProgressMap>({});
@@ -251,7 +255,7 @@ export default function TrainingPage() {
     if (p === "listening") {
       setLiveTimer((now - listenStartRef.current) / 1000);
       if (vol > START_THRESH) {
-        setReaction((now - listenStartRef.current) / 1000);
+        markReaction((now - listenStartRef.current) / 1000);
         speakStartRef.current = now;
         lastVoiceRef.current = now;
         setPhase("speaking");
@@ -292,6 +296,7 @@ export default function TrainingPage() {
     setPhase("cue");
     phaseRef.current = "cue";
     setLiveTimer(0);
+    reactionRef.current = 0;
     setReaction(0);
     const begin = () => startListening();
     if (cur.type !== "Expansion") {
@@ -315,15 +320,18 @@ export default function TrainingPage() {
       rec.lang = "en-US";
       rec.interimResults = true;
       rec.continuous = false; // 收一句、靜默後自動結束
-      rec.onspeechstart = () => {
+      // 第一個開口訊號(onspeechstart 或第一筆辨識結果,擇先到者)→ 記反應時間
+      const markStart = () => {
         if (phaseRef.current === "listening") {
-          setReaction((performance.now() - listenStartRef.current) / 1000);
+          markReaction((performance.now() - listenStartRef.current) / 1000);
           setPhase("speaking");
           phaseRef.current = "speaking";
         }
       };
+      rec.onspeechstart = markStart;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       rec.onresult = (e: any) => {
+        markStart(); // iOS 上 onspeechstart 常不觸發,改用第一筆結果當作開口時刻
         let t = "";
         for (let i = 0; i < e.results.length; i++) t += e.results[i][0].transcript;
         liveTranscriptRef.current = t;
@@ -369,7 +377,7 @@ export default function TrainingPage() {
   }
   function manualStart() {
     if (phaseRef.current !== "listening") return;
-    setReaction((performance.now() - listenStartRef.current) / 1000);
+    markReaction((performance.now() - listenStartRef.current) / 1000);
     setPhase("speaking");
     phaseRef.current = "speaking";
   }
@@ -377,7 +385,7 @@ export default function TrainingPage() {
     if (phaseRef.current !== "listening" && phaseRef.current !== "speaking") return; // 防重複(onend + 手動)
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     rafRef.current = null;
-    timesRef.current.push(reaction || (performance.now() - listenStartRef.current) / 1000);
+    timesRef.current.push(reactionRef.current || (performance.now() - listenStartRef.current) / 1000);
     setPhase("reveal");
     phaseRef.current = "reveal";
     setEchoStep(null);
@@ -521,15 +529,14 @@ export default function TrainingPage() {
     const review = await sessionReview({ pattern: pat, reps: reps.map((r) => ({ expected: r.expected, said: r.said, type: r.type })) });
     setSessionAiLoading(false);
 
-    // 對映回每一發(送出順序 = 回傳 i)。AI 失敗 → 用本地比對兜底。
-    const verdicts = new Map<number, { correct: boolean; errors: string[] }>();
-    if (review) for (const res of review.results) if (res.i >= 0 && res.i < reps.length) verdicts.set(res.i, { correct: res.correct, errors: res.errors });
+    // 對映回每一發(以回傳 i 對位,對不上用本地比對兜底)。產生與 reps 對齊的對錯陣列。
+    const byI = new Map<number, { correct: boolean; errors: string[] }>();
+    if (review) for (const res of review.results) if (Number.isInteger(res.i) && res.i >= 0 && res.i < reps.length) byI.set(res.i, { correct: res.correct, errors: res.errors });
 
     let anyWrong = false;
     const allErrors: string[] = [];
-    reps.forEach((rep, k) => {
-      let v = verdicts.get(k);
-      if (!v) { const lj = localJudge(rep.expected, rep.said); v = { correct: lj.correct, errors: [] }; }
+    const outcomes = reps.map((rep, k) => {
+      const v = byI.get(k) ?? { correct: localJudge(rep.expected, rep.said).correct, errors: [] };
       if (v.correct) {
         if (rep.cue) logReview({ kind: "word", ref: `word:${rep.cue}`, text: rep.cue, nativeZh: "", patternId: lid, event: "correct" });
       } else {
@@ -538,7 +545,9 @@ export default function TrainingPage() {
         logReview({ kind: "sentence", ref: `sent:${lid}:${rep.expected}`, text: rep.expected, nativeZh: rep.nativeZh ?? "", patternId: lid, event: "wrong" });
         allErrors.push(...v.errors);
       }
+      return v;
     });
+    setSessionVerdicts(outcomes);
     sessionErrorRef.current = sessionErrorRef.current || anyWrong;
     if (allErrors.length) logErrors(allErrors, { lessonId: lid });
     // 延後到此才記 drill gap(整輪全對才升 box)
@@ -572,6 +581,7 @@ export default function TrainingPage() {
     setSessionAi(null);
     setSessionAiMsg("");
     setSessionAiLoading(false);
+    setSessionVerdicts([]);
     stepsRef.current = s;
     timesRef.current = [];
     setSteps(s);
@@ -940,7 +950,7 @@ export default function TrainingPage() {
                 <div className="card p-4 text-center text-sm text-slate-400 animate-pulse">🤖 正在對這 {repsRef.current.length} 發做整體分析…</div>
               ) : sessionAi ? (
                 <div className="card p-4">
-                  {(() => { const vm = new Map(sessionAi.results.map((r) => [r.i, r])); const reps = repsRef.current; const ok = reps.filter((_, k) => vm.get(k)?.correct).length;
+                  {(() => { const reps = repsRef.current; const ok = sessionVerdicts.filter((v) => v.correct).length;
                     return (
                       <>
                         <div className="mb-2 flex items-center gap-2">
@@ -954,7 +964,7 @@ export default function TrainingPage() {
                         <details className="mt-3">
                           <summary className="cursor-pointer text-xs text-slate-500">逐發明細</summary>
                           <ul className="mt-2 space-y-1.5">
-                            {reps.map((rep, k) => { const v = vm.get(k); const correct = v ? v.correct : true; return (
+                            {reps.map((rep, k) => { const v = sessionVerdicts[k]; const correct = v ? v.correct : true; return (
                               <li key={k} className="rounded-lg border border-ink-700 bg-ink-900/40 px-2.5 py-1.5 text-sm">
                                 <div className="flex items-center gap-2">
                                   <span className={correct ? "text-accent" : "text-red-400"}>{correct ? "✓" : "✗"}</span>

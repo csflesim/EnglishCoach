@@ -32,7 +32,7 @@ export async function sessionReview(p: {
     const j = await r.json();
     if (j.error || !Array.isArray(j.results)) return null;
     return {
-      results: (j.results as SessionRepResult[]).map((x) => ({ i: x.i, correct: !!x.correct, errors: Array.isArray(x.errors) ? x.errors : [] })),
+      results: (j.results as SessionRepResult[]).map((x) => ({ i: Number(x.i), correct: !!x.correct, errors: Array.isArray(x.errors) ? x.errors : [] })),
       summary: typeof j.summary === "string" ? j.summary : "",
       tips: Array.isArray(j.tips) ? j.tips : [],
     };
