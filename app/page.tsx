@@ -102,6 +102,8 @@ export default function TrainingPage() {
   const [sessionVerdicts, setSessionVerdicts] = useState<{ correct: boolean; errors: string[] }[]>([]); // 每發對錯(與 reps 對齊)
   const repsRef = useRef<SessionRep[]>([]); // 本輪收集的每一發(供結束後 AI 分析)
   const batchDoneRef = useRef(false); // 防止整輪分析重複執行
+  // 本輪設定(同步寫入,供 finish 讀取 — 避免 finish 在舊閉包讀到尚未更新的 state)
+  const sessionMetaRef = useRef<{ lessonId: string; mode: DrillType; frame?: string; person?: PKey | "all"; op?: string }>({ lessonId: "", mode: "Substitution" });
   const progressRef = useRef<ProgressMap>({});
   progressRef.current = progress;
   const aiRef = useRef(false);
@@ -500,17 +502,16 @@ export default function TrainingPage() {
     const dur = (Date.now() - startRef.current) / 1000;
     setDurationSec(dur);
     // 寫入真實練習紀錄(供「我的」頁 + 打卡日曆)
+    const meta = sessionMetaRef.current; // 本輪設定(同步記下,非舊閉包)
+    const lid = meta.lessonId || selectedId;
     const ts = timesRef.current;
     const avg = ts.length ? ts.reduce((a, b) => a + b, 0) / ts.length : null;
-    logSession({ duration_sec: dur, drill_type: drillType, lesson_id: selectedId, reps: stepsRef.current.length, avg_reaction: avg });
+    logSession({ duration_sec: dur, drill_type: meta.mode, lesson_id: lid, reps: stepsRef.current.length, avg_reaction: avg });
     // drill gap:整輪全對→box+1(間隔變長);有錯→歸零。
     // AI 背景模式:對錯要等整輪 AI 評分,故延後到分析完成再記(見 complete 的 effect)。
-    if (!aiRef.current) logDrill(selectedId, drillType, lessonRef.current.patternText, sessionErrorRef.current);
+    if (!aiRef.current) logDrill(lid, meta.mode, lessonRef.current.patternText, sessionErrorRef.current);
     // 記錄完成的細粒度進度(人稱×句框×模式)→ 推進學習地圖
-    // 替換:句框存在 selectedOp;轉換:句框 selectedFrame、操作 selectedOp
-    const frame = drillType === "Substitution" ? selectedOp : selectedFrame;
-    const op = drillType === "Transformation" ? selectedOp : undefined;
-    const np = markSession(progressRef.current, selectedId, { mode: drillType, frame, person: selectedPerson, op });
+    const np = markSession(progressRef.current, lid, { mode: meta.mode, frame: meta.frame, person: meta.person, op: meta.op });
     setProgress(np);
     progressRef.current = np;
     setMode("complete");
@@ -521,10 +522,11 @@ export default function TrainingPage() {
   async function runSessionReview() {
     if (batchDoneRef.current) return;
     batchDoneRef.current = true;
+    const meta = sessionMetaRef.current;
     const reps = repsRef.current.slice();
-    const lid = lessonRef.current?.id ?? selectedId;
+    const lid = meta.lessonId || lessonRef.current?.id || selectedId;
     const pat = lessonRef.current?.patternText ?? "";
-    if (!reps.length) { logDrill(selectedId, drillType, pat, sessionErrorRef.current); return; }
+    if (!reps.length) { logDrill(lid, meta.mode, pat, sessionErrorRef.current); return; }
 
     setSessionAiLoading(true);
     setSessionAiMsg("");
@@ -553,7 +555,7 @@ export default function TrainingPage() {
     sessionErrorRef.current = sessionErrorRef.current || anyWrong;
     if (allErrors.length) logErrors(allErrors, { lessonId: lid });
     // 延後到此才記 drill gap(整輪全對才升 box)
-    logDrill(selectedId, drillType, pat, sessionErrorRef.current);
+    logDrill(lid, meta.mode, pat, sessionErrorRef.current);
     if (review) setSessionAi(review);
     else setSessionAiMsg("AI 分析暫時無法使用,已用本地比對評分(對錯仍記錄)。");
   }
@@ -573,6 +575,14 @@ export default function TrainingPage() {
     setSelectedOp(opKey);
     setSelectedFrame(frameKey);
     if (person) setSelectedPerson(person);
+    // 同步記下本輪設定(供 finish 用,避免讀到舊閉包的 state)
+    sessionMetaRef.current = {
+      lessonId: selectedId,
+      mode: type,
+      frame: type === "Substitution" ? opKey : frameKey,
+      op: type === "Transformation" ? opKey : undefined,
+      person,
+    };
     let s = buildSession(getLesson(selectedId), type, opKey, frameKey, person);
     // 依 drill gap 決定發數(首次/gap1=20、gap2=10、gap3=5、gap4+=3)
     const box = drillReviewRef.current.get(drillKey(selectedId, type))?.box ?? 0;
