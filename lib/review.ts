@@ -94,6 +94,15 @@ export async function getWordReviewMap(): Promise<Map<string, { status: string; 
   return m;
 }
 
+// 單字 box map(word(小寫)→ box),供後台顯示
+export async function getWordBoxMap(): Promise<Map<string, number>> {
+  const m = new Map<string, number>();
+  if (!hasSupabase) return m;
+  const items = await getReviewItems("word");
+  for (const it of items) m.set(it.ref.replace(/^word:/, ""), it.box ?? 0);
+  return m;
+}
+
 export function isDue(it: ReviewItem): boolean {
   if (it.status === "weak") return true;
   if (!it.next_review) return true;
