@@ -1,5 +1,7 @@
 # 產品功能 (Features) — English Reflex Coach MVP
 
+> ⚠️ **本檔為早期規格/願景,部分已過時。** 目前實際實作以 [`changelog.md`](./changelog.md) 為準;規格與實作的落差見 [`gap-analysis.md`](./gap-analysis.md)。
+>
 > 📌 這是目前**實際在做**的精簡版本。過去的龐大願景(多引擎、遊戲化、進階分析…)已封存於 [`archive/`](./archive/)，非當前範圍。
 
 ---

@@ -1,5 +1,7 @@
 # 系統架構 (Architecture) — MVP
 
+> ⚠️ **本檔部分已過時**(評分流程、資料表、掌握模型已演進)。目前實作以 [`changelog.md`](./changelog.md) 為準;落差見 [`gap-analysis.md`](./gap-analysis.md)。
+>
 > 📌 精簡版架構，對應目前實作。舊的龐大架構(8 引擎、24 張表、ERS 八維、遊戲化…)已封存於 [`archive/`](./archive/)。
 
 ---

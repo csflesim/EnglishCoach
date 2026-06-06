@@ -25,9 +25,13 @@
 
 ## 文件目錄
 
+> 🟢 **目前實作以下面兩份為準**(其餘為早期規格/願景):
+> - **[變更紀錄 / 實作現況 (Changelog)](./changelog.md)** — 目前實際做了什麼(操練引擎、評分、SRS、掌握模型、資料表…)。
+> - **[落差分析 (Gap Analysis)](./gap-analysis.md)** — 文檔有但未做 / 已做但不同 / 額外新增。
+
 1. **[快速上手 (Getting Started)](./getting-started.md)** — 安裝與本地運行。
-2. **[系統架構 (Architecture)](./architecture.md)** — 技術棧、三頁結構、操練流程、最小資料模型、AI 用途。
-3. **[產品功能 (Features)](./features.md)** — 願景、四大操練、學習路徑、弱點引擎、AI 原則。
+2. **[系統架構 (Architecture)](./architecture.md)** — ⚠️ 部分過時。技術棧、結構、操練流程、資料模型。
+3. **[產品功能 (Features)](./features.md)** — ⚠️ 早期規格/願景。四大操練、學習路徑、弱點引擎、AI 原則。
 4. **[開發指南 (Development Guide)](./development-guide.md)** — 流程、風格、MVP 優先級與測試案例。
 5. **[MVP 範圍 (MVP Scope)](./mvp-scope.md)** — 做什麼／不做什麼、建議實作順序、完成定義。
 
