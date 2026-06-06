@@ -28,6 +28,7 @@ import { initContent, getActiveWordbook, getComboChecks, recordChecks, logErrors
 import { transcribe, evaluate, checkFrame, type EvalResult } from "@/lib/ai";
 import { logReview, getWordReviewMap, getDrillReviewMap, drillKey, repCountForBox, logDrill, type DrillReview } from "@/lib/review";
 import { logSession } from "@/lib/practice";
+import { localJudge } from "@/lib/match";
 
 type Mode = "home" | "select" | "selectSub" | "selectSubPerson" | "selectTransFrame" | "selectOp" | "running" | "complete";
 type RunPhase = "groupIntro" | "cue" | "listening" | "speaking" | "reveal";
@@ -81,6 +82,7 @@ export default function TrainingPage() {
   const [showTranslation, setShowTranslation] = useState(false); // 提示時是否顯示中文(預設關)
   const [aiFilterOn, setAiFilterOn] = useState(true); // 選詞時 AI 過濾不通組合(需金鑰,判過不重判;無金鑰自動略過)
   const [webSpeechOn, setWebSpeechOn] = useState(true); // 瀏覽器即時辨識(免費)
+  const [localMatchOn, setLocalMatchOn] = useState(true); // 本地比對判對錯(免費;AI 關時生效)
   const [heardText, setHeardText] = useState(""); // 即時辨識到的文字
   const [echoStep, setEchoStep] = useState<"t1" | "t1echo" | "nat" | "t2" | "t2echo" | null>(null);
   const [durationSec, setDurationSec] = useState(0);
@@ -101,6 +103,8 @@ export default function TrainingPage() {
   const webSpeechActiveRef = useRef(false); // 本發是否真的啟用了 Web Speech(支援才有)
   const webSpeechOnRef = useRef(true);
   webSpeechOnRef.current = webSpeechOn;
+  const localMatchRef = useRef(true);
+  localMatchRef.current = localMatchOn;
   const chunksRef = useRef<Blob[]>([]);
   const drillReviewRef = useRef<Map<string, DrillReview>>(new Map()); // drill gap 狀態
   const sessionErrorRef = useRef(false); // 本輪是否有答錯/標不熟
@@ -388,6 +392,12 @@ export default function TrainingPage() {
             if (res?.errors?.length) { logErrors(res.errors, { expected: cur.answer, said, lessonId: lessonRef.current?.id ?? selectedId }); }
             revealAndContinue(cur);
           });
+        } else if (localMatchRef.current && said) {
+          // 本地比對(免費):縮寫等價、忽略標點大小寫
+          const r = localJudge(cur.answer, said);
+          setAiResult({ correct: r.correct, accuracy: r.accuracy, grammar: r.accuracy, fluency: 0, feedback: r.correct ? "✓ 與正解相符" : "與正解不同,再試一次", errors: [], transcript: said });
+          if (!r.correct) { logRep(cur, "wrong"); repWordMarkedRef.current = true; }
+          revealAndContinue(cur);
         } else {
           revealAndContinue(cur);
         }
@@ -595,6 +605,7 @@ export default function TrainingPage() {
               <label className="flex items-center gap-1.5" title="正解後加跑 英→母語→英"><input type="checkbox" checked={echoLoop} onChange={(e) => setEchoLoop(e.target.checked)} className="h-3.5 w-3.5 accent-[#39d0a3]" />🔁</label>
               <label className="flex items-center gap-1.5" title="用 AI 聽你說、評分糾錯(需設定 OpenAI 金鑰、會產生費用)"><input type="checkbox" checked={aiOn} onChange={(e) => setAiOn(e.target.checked)} className="h-3.5 w-3.5 accent-[#39d0a3]" />🤖</label>
               <label className="flex items-center gap-1.5" title="選詞時 AI 自動過濾不通組合(判過不重判;需金鑰)"><input type="checkbox" checked={aiFilterOn} onChange={(e) => setAiFilterOn(e.target.checked)} className="h-3.5 w-3.5 accent-[#39d0a3]" />🧹</label>
+              <label className="flex items-center gap-1.5" title="本地比對判對錯(免費;AI 關時生效;縮寫等價)"><input type="checkbox" checked={localMatchOn} onChange={(e) => setLocalMatchOn(e.target.checked)} className="h-3.5 w-3.5 accent-[#39d0a3]" />✅</label>
             </div>
           </div>
           <div className="space-y-4">
@@ -919,6 +930,7 @@ export default function TrainingPage() {
         <button onClick={() => setAudioOn((v) => !v)} className="btn-ghost">{audioOn ? "🔊 語音開" : "🔇 語音關"}</button>
         <button onClick={() => setShowTranslation((v) => !v)} className="btn-ghost">{showTranslation ? "🌐 翻譯開" : "🌐 翻譯關"}</button>
         <button onClick={() => setWebSpeechOn((v) => !v)} className="btn-ghost">{webSpeechOn ? "🎙 即時辨識開" : "🎙 即時辨識關"}</button>
+        <button onClick={() => setLocalMatchOn((v) => !v)} className="btn-ghost">{localMatchOn ? "✅ 本地比對開" : "✅ 本地比對關"}</button>
         <button onClick={markWordUnknown} className="btn-ghost text-red-400">✗ 單詞不熟</button>
         <button onClick={markSentenceUnknown} className="btn-ghost text-red-400">✗ 句子不熟</button>
         <button onClick={() => setAiFilterOn((v) => !v)} className="btn-ghost">{aiFilterOn ? "🤖 AI 過濾開" : "🤖 AI 過濾關"}</button>
