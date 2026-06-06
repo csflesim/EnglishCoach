@@ -9,7 +9,7 @@ import {
   buildSession,
   framesOf,
   frameDisplay,
-  vocabByCategory,
+  candidateWords,
   availableModes,
   subFrameCount,
   transformFrames,
@@ -24,7 +24,7 @@ import {
   type PKey,
 } from "@/lib/mock";
 import { initProgress, markMode, lessonProgress, recommendNextLessonId, type ProgressMap } from "@/lib/progress";
-import { initContent, getActiveWordbook, getBadCombos, addBadCombos } from "@/lib/content";
+import { initContent, getActiveWordbook, getComboChecks, recordChecks } from "@/lib/content";
 import { transcribe, evaluate, checkFrame, type EvalResult } from "@/lib/ai";
 import { logReview, getWordReviewMap, getDrillReviewMap, drillKey, repCountForBox, logDrill, type DrillReview } from "@/lib/review";
 import { logSession, bumpWeaknessTag } from "@/lib/practice";
@@ -79,6 +79,7 @@ export default function TrainingPage() {
   const [micError, setMicError] = useState(false);
   const [echoLoop, setEchoLoop] = useState(false);
   const [showTranslation, setShowTranslation] = useState(false); // 提示時是否顯示中文(預設關)
+  const [aiFilterOn, setAiFilterOn] = useState(true); // 選詞時 AI 過濾不通組合(需金鑰,判過不重判;無金鑰自動略過)
   const [webSpeechOn, setWebSpeechOn] = useState(true); // 瀏覽器即時辨識(免費)
   const [heardText, setHeardText] = useState(""); // 即時辨識到的文字
   const [echoStep, setEchoStep] = useState<"t1" | "t1echo" | "nat" | "t2" | "t2echo" | null>(null);
@@ -105,6 +106,9 @@ export default function TrainingPage() {
   const sessionErrorRef = useRef(false); // 本輪是否有答錯/標不熟
   const repWordMarkedRef = useRef(false); // 本發單字是否已標(不熟/錯)→ 不再記「答對」
   const badCombosRef = useRef<Set<string>>(new Set()); // 不通的 句框|單字 組合
+  const checkedCombosRef = useRef<Set<string>>(new Set()); // 已判斷過的組合(好壞都算)
+  const aiFilterRef = useRef(false);
+  aiFilterRef.current = aiFilterOn;
 
   const timeoutsRef = useRef<number[]>([]);
   const startRef = useRef(0);
@@ -441,30 +445,21 @@ export default function TrainingPage() {
   function flash(msg: string) { setMarkedMsg(msg); schedule(() => setMarkedMsg(""), 1500); }
   function markWordUnknown() { const cur = stepsRef.current[idxRef.current]; if (cur) { repWordMarkedRef.current = true; logWord(cur, "unknown"); flash("單詞已加入複習"); } }
   function markSentenceUnknown() { const cur = stepsRef.current[idxRef.current]; if (cur) { logSentence(cur, "unknown"); flash("句子已加入複習"); } }
-  // 這個「句框×單字」不通 → 記錄封鎖名單,並跳過
-  function markBadCombo() {
-    const cur = stepsRef.current[idxRef.current];
-    if (!cur?.groupKey || !cur.cue) return;
-    badCombosRef.current.add(`${cur.groupKey}|${cur.cue}`);
-    addBadCombos(cur.groupKey, [cur.cue], "user");
-    flash("已排除此組合,之後不再出現");
-    clearTimers(); try { window.speechSynthesis?.cancel(); } catch {}
-    stopWebSpeech();
-    runStep(idxRef.current + 1);
-  }
-  // AI 清理目前句框:批次判斷哪些字填進去不通 → 記錄封鎖
-  async function aiCleanFrame() {
-    const cur = stepsRef.current[idxRef.current];
-    const f = cur?.groupKey ? framesOf(lessonRef.current).find((x) => x.frame === cur.groupKey) : undefined;
-    if (!f) return;
-    flash("🤖 AI 清理此句框中…");
-    const words = vocabByCategory(f.category, f.pos, f.slot).slice(0, 40).map((w) => w.word);
-    const bad = await checkFrame(frameDisplay(f), words);
-    if (bad && bad.length) {
-      bad.forEach((w) => badCombosRef.current.add(`${f.frame}|${w}`));
-      await addBadCombos(f.frame, bad, "ai");
-      flash(`AI 排除了 ${bad.length} 個不通組合`);
-    } else flash(bad ? "AI 沒找到不通組合" : "AI 清理失敗(需 OpenAI 金鑰)");
+  // AI 選詞過濾:把這個句框「還沒判過」的候選字交給 AI,壞的排除、好壞都記(之後不再重判)
+  async function aiFilterFrame(f: { frame: string; category: string; pos?: string; slot?: string; conj?: string; frameZh: string } | undefined) {
+    if (!aiFilterRef.current || !f) return;
+    const cands = candidateWords(f as Parameters<typeof candidateWords>[0], 40);
+    const unjudged = cands.filter((w) => !checkedCombosRef.current.has(`${f.frame}|${w}`));
+    if (!unjudged.length) return;
+    const bad = await checkFrame(frameDisplay(f as Parameters<typeof frameDisplay>[0]), unjudged);
+    if (!bad) return; // 沒金鑰/失敗 → 不記、不過濾
+    const badSet = new Set(bad);
+    for (const w of unjudged) {
+      const k = `${f.frame}|${w}`;
+      checkedCombosRef.current.add(k);
+      if (badSet.has(w)) badCombosRef.current.add(k);
+    }
+    await recordChecks(f.frame, unjudged.map((w) => ({ word: w, ok: !badSet.has(w) })));
   }
 
   function finish() {
@@ -493,8 +488,12 @@ export default function TrainingPage() {
   }
   async function startSession(type: DrillType, opKey?: string, frameKey?: string, person?: PKey | "all") {
     unlockTTS(); // 在點擊手勢當下解鎖手機語音
-    // 刷新單字複習狀態(練過的會升 box → 換新字、由易到難推進)
-    setSelectionContext(getActiveWordbook(), await getWordReviewMap());
+    // AI 選詞過濾:把此句框沒判過的字交給 AI,壞的排除(判過不重判)
+    const fr = framesOf(getLesson(selectedId));
+    const f = type === "Substitution" ? fr.find((x) => x.frame === opKey) ?? fr[0] : transformFrames(getLesson(selectedId)).find((x) => x.frame === frameKey) ?? transformFrames(getLesson(selectedId))[0];
+    await aiFilterFrame(f);
+    // 刷新單字複習狀態(練過的會升 box → 換新字、由易到難推進)+ 帶入最新封鎖
+    setSelectionContext(getActiveWordbook(), await getWordReviewMap(), badCombosRef.current);
     setSelectedOp(opKey);
     setSelectedFrame(frameKey);
     if (person) setSelectedPerson(person);
@@ -535,9 +534,10 @@ export default function TrainingPage() {
     initContent().then(async () => {
       // Phase 2 選詞情境:使用中詞本 + 單字複習狀態
       const wb = getActiveWordbook();
-      const [review, drills, bad] = await Promise.all([getWordReviewMap(), getDrillReviewMap(), getBadCombos()]);
-      badCombosRef.current = bad;
-      setSelectionContext(wb, review, bad);
+      const [review, drills, combos] = await Promise.all([getWordReviewMap(), getDrillReviewMap(), getComboChecks()]);
+      badCombosRef.current = combos.bad;
+      checkedCombosRef.current = combos.checked;
+      setSelectionContext(wb, review, combos.bad);
       drillReviewRef.current = drills;
       setContentTick((t) => t + 1);
     });
@@ -578,6 +578,7 @@ export default function TrainingPage() {
               <label className="flex items-center gap-1.5"><input type="checkbox" checked={audioOn} onChange={(e) => setAudioOn(e.target.checked)} className="h-3.5 w-3.5 accent-[#39d0a3]" />🔊</label>
               <label className="flex items-center gap-1.5" title="正解後加跑 英→母語→英"><input type="checkbox" checked={echoLoop} onChange={(e) => setEchoLoop(e.target.checked)} className="h-3.5 w-3.5 accent-[#39d0a3]" />🔁</label>
               <label className="flex items-center gap-1.5" title="用 AI 聽你說、評分糾錯(需設定 OpenAI 金鑰、會產生費用)"><input type="checkbox" checked={aiOn} onChange={(e) => setAiOn(e.target.checked)} className="h-3.5 w-3.5 accent-[#39d0a3]" />🤖</label>
+              <label className="flex items-center gap-1.5" title="選詞時 AI 自動過濾不通組合(判過不重判;需金鑰)"><input type="checkbox" checked={aiFilterOn} onChange={(e) => setAiFilterOn(e.target.checked)} className="h-3.5 w-3.5 accent-[#39d0a3]" />🧹</label>
             </div>
           </div>
           <div className="space-y-4">
@@ -901,8 +902,7 @@ export default function TrainingPage() {
         <button onClick={() => setWebSpeechOn((v) => !v)} className="btn-ghost">{webSpeechOn ? "🎙 即時辨識開" : "🎙 即時辨識關"}</button>
         <button onClick={markWordUnknown} className="btn-ghost text-red-400">✗ 單詞不熟</button>
         <button onClick={markSentenceUnknown} className="btn-ghost text-red-400">✗ 句子不熟</button>
-        <button onClick={markBadCombo} className="btn-ghost text-slate-400">🚫 這句不通</button>
-        <button onClick={aiCleanFrame} className="btn-ghost text-slate-400">🤖 清理句框</button>
+        <button onClick={() => setAiFilterOn((v) => !v)} className="btn-ghost">{aiFilterOn ? "🤖 AI 過濾開" : "🤖 AI 過濾關"}</button>
       </div>
       {markedMsg && <p className="mt-2 text-center text-xs text-accent">{markedMsg}</p>}
       {micError && <p className="mt-3 text-center text-xs text-gold">麥克風無法使用，已切換為手動模式。</p>}

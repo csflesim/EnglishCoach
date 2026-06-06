@@ -28,16 +28,20 @@ export type Wordbook = { name: string; label: string | null };
 let wbCatalog: Wordbook[] = [];
 let applied = false;
 
-// 封鎖名單(句框×單字 不通)——以 "frame|word" 為鍵
-export const badComboKey = (frame: string, word: string) => `${frame}|${word}`;
-export async function getBadCombos(): Promise<Set<string>> {
-  if (!hasSupabase) return new Set();
-  const rows = await selectAll<{ frame: string; word: string }>("bad_combos", "frame,word");
-  return new Set(rows.map((r) => badComboKey(r.frame, r.word)));
+// 已判斷組合快取(句框×單字)。checked=全部判過;bad=判定不通的。鍵 "frame|word"
+export const comboKey = (frame: string, word: string) => `${frame}|${word}`;
+export async function getComboChecks(): Promise<{ checked: Set<string>; bad: Set<string> }> {
+  if (!hasSupabase) return { checked: new Set(), bad: new Set() };
+  const rows = await selectAll<{ frame: string; word: string; ok: boolean }>("bad_combos", "frame,word,ok");
+  const checked = new Set<string>();
+  const bad = new Set<string>();
+  for (const r of rows) { const k = comboKey(r.frame, r.word); checked.add(k); if (!r.ok) bad.add(k); }
+  return { checked, bad };
 }
-export async function addBadCombos(frame: string, words: string[], reason = ""): Promise<void> {
-  if (!hasSupabase || !words.length) return;
-  await upsertRows("bad_combos", words.map((w) => ({ frame, word: w, reason })), "frame,word");
+// 記錄一批判斷結果(好壞都記 → 之後不再重判)
+export async function recordChecks(frame: string, results: { word: string; ok: boolean }[], reason = "ai"): Promise<void> {
+  if (!hasSupabase || !results.length) return;
+  await upsertRows("bad_combos", results.map((r) => ({ frame, word: r.word, ok: r.ok, reason })), "frame,word");
 }
 
 function cyclesFromRows(cycles: CycleRow[], units: UnitRow[]): Cycle[] {

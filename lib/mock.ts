@@ -62,6 +62,14 @@ export function setSelectionContext(wb: string | null, review: Map<string, WordR
   wordReviewMap = review;
   if (bad) badCombos = bad;
 }
+// 候選字(使用中詞本 + 文法槽,由易到難,排除已知不通)— 供 AI 過濾判斷
+export function candidateWords(f: SubFrame, n = 40): string[] {
+  let pool = vocabByCategory(f.category, f.pos, f.slot);
+  if (activeWordbook && activeWordbook !== "ALL") pool = pool.filter((w) => w.wordbooks?.includes(activeWordbook!));
+  pool = pool.filter((w) => !badCombos.has(`${f.frame}|${w.word}`));
+  return pool.slice(0, n).map((w) => w.word);
+}
+
 // Phase 2 選詞:使用中詞本 → 文法槽 → 答錯優先 + 保留 ¼ 複習 + 其餘由易到難
 export function selectForFrame(f: SubFrame, n = SUBSTITUTION_TARGET): VocabWord[] {
   let pool = vocabByCategory(f.category, f.pos, f.slot); // 已按 difficulty 由易到難
