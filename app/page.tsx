@@ -133,6 +133,10 @@ export default function TrainingPage() {
   phaseRef.current = phase;
   idxRef.current = idx;
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const webSpeechSupported = typeof window !== "undefined" && !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+  const wsMode = webSpeechOn && webSpeechSupported; // 用 Web Speech 即時辨識(就不開 VAD,避免搶麥)
+
   const lesson = getLesson(selectedId);
   const step = steps[idx];
   const lessonRef = useRef(lesson);
@@ -287,9 +291,9 @@ export default function TrainingPage() {
     }
   }
 
+  // Web Speech 自己處理:開始說(計反應)→ 即時辨識 → 說完(onend)自動結束
   function startWebSpeech() {
     webSpeechActiveRef.current = false;
-    if (!webSpeechOnRef.current) return;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) return;
@@ -299,7 +303,14 @@ export default function TrainingPage() {
       const rec = new SR();
       rec.lang = "en-US";
       rec.interimResults = true;
-      rec.continuous = true;
+      rec.continuous = false; // 收一句、靜默後自動結束
+      rec.onspeechstart = () => {
+        if (phaseRef.current === "listening") {
+          setReaction((performance.now() - listenStartRef.current) / 1000);
+          setPhase("speaking");
+          phaseRef.current = "speaking";
+        }
+      };
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       rec.onresult = (e: any) => {
         let t = "";
@@ -308,6 +319,10 @@ export default function TrainingPage() {
         setHeardText(t);
       };
       rec.onerror = () => {};
+      rec.onend = () => {
+        // 有講到話才自動結束;沒講到就等使用者按「說完了」
+        if ((phaseRef.current === "listening" || phaseRef.current === "speaking") && liveTranscriptRef.current.trim()) endSpeaking();
+      };
       recognitionRef.current = rec;
       rec.start();
       webSpeechActiveRef.current = true;
@@ -323,11 +338,11 @@ export default function TrainingPage() {
     lastVoiceRef.current = performance.now();
     setPhase("listening");
     phaseRef.current = "listening";
-    startWebSpeech();
+    if (wsMode) { startWebSpeech(); return; } // Web Speech 模式:不開 VAD,避免搶麥
     if (micRef.current) {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rafRef.current = requestAnimationFrame(loop);
-      // AI 評分:錄下這次回答的音訊
+      // AI 評分(Whisper 回合制):錄下這次回答的音訊
       if (aiRef.current && streamRef.current) {
         try {
           const rec = new MediaRecorder(streamRef.current);
@@ -348,6 +363,7 @@ export default function TrainingPage() {
     phaseRef.current = "speaking";
   }
   function endSpeaking() {
+    if (phaseRef.current !== "listening" && phaseRef.current !== "speaking") return; // 防重複(onend + 手動)
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     rafRef.current = null;
     timesRef.current.push(reaction || (performance.now() - listenStartRef.current) / 1000);
@@ -510,7 +526,7 @@ export default function TrainingPage() {
     setPaused(false);
     setEchoStep(null);
     startRef.current = Date.now();
-    if (useMic) {
+    if (useMic && !wsMode) { // Web Speech 模式不開 VAD(自己用麥)
       const ok = await initMic();
       setMicError(!ok);
       micRef.current = ok;
@@ -838,12 +854,15 @@ export default function TrainingPage() {
             {showTranslation && step?.nativeZh && <div className="text-base text-slate-400">{step.nativeZh}</div>}
             <div className={`text-4xl font-black tabular-nums ${liveTimer > 3 ? "text-red-400" : liveTimer > 1.5 ? "text-gold" : "text-accent"}`}>{liveTimer.toFixed(1)}s</div>
             <div className="text-xs text-slate-500">⏱ 反應速度計時中（3 秒內開口為佳，不會打斷你）</div>
-            {webSpeechOn && <div className="min-h-[1.25rem] text-sm text-accent">{heardText ? `辨識:${heardText}` : "🎙 即時辨識中…"}</div>}
-            {micRef.current ? (
+            {wsMode && <div className="min-h-[1.25rem] text-sm text-accent">{heardText ? `辨識:${heardText}` : "🎙 即時辨識中…"}</div>}
+            {wsMode ? (
+              <div className="flex items-center gap-2 text-sm text-accent"><span className="text-lg">🎙</span> 偵測中…說完會自動判斷</div>
+            ) : micRef.current ? (
               <div className="flex items-center gap-2 text-sm text-accent"><span className="text-lg">🎙</span> 偵測中…大聲說出完整句子</div>
             ) : (
               <button onClick={manualStart} className="btn-primary px-8 py-3">我開始說了</button>
             )}
+            {wsMode && <button onClick={endSpeaking} className="btn-ghost px-6 py-2 text-sm">說完了 →</button>}
           </>
         ) : phase === "speaking" ? (
           <>
@@ -854,8 +873,8 @@ export default function TrainingPage() {
               說完即可，我不會打斷你
             </div>
             <div className="text-xs text-slate-500">反應速度：<span className={tierColor[tier(reaction)]}>{reaction.toFixed(1)}s · {tier(reaction)}</span></div>
-            {webSpeechOn && heardText && <div className="text-sm text-accent">辨識:{heardText}</div>}
-            {!micRef.current && <button onClick={endSpeaking} className="btn-primary px-8 py-3">說完了 →</button>}
+            {wsMode && heardText && <div className="text-sm text-accent">辨識:{heardText}</div>}
+            {(!micRef.current || wsMode) && <button onClick={endSpeaking} className="btn-primary px-8 py-3">說完了 →</button>}
           </>
         ) : echoStep ? (
           <>
