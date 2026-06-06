@@ -739,6 +739,28 @@ export function frameDisplay(f: SubFrame): string {
   return f.conj ? renderSentence(f, f.subj ?? "I", "___", "___", f.op ?? "present").en : f.frame;
 }
 
+// 單字閃卡:回傳 英文 / 中文 / 例句(找一個相容句框把該字套進去)。找不到例句則留空。
+export function wordFlashcard(word: string): { word: string; zh: string; sentence: string; sentenceZh: string } {
+  const w = word.trim();
+  const vw = vocabBank.find((v) => v.word.toLowerCase() === w.toLowerCase());
+  const zh = vw?.nativeZh ?? "";
+  let sentence = "", sentenceZh = "";
+  if (vw) {
+    for (const l of lessons) {
+      const f = framesOf(l).find((x) =>
+        x.category === vw.category &&
+        (!x.pos || !vw.pos || x.pos === vw.pos) &&
+        (!x.slot || !vw.slots || vw.slots.includes(x.slot)),
+      );
+      if (!f) continue;
+      if (f.conj) { const r = renderSentence(f, f.subj ?? "I", vw.word, zh, f.op ?? "present"); sentence = r.en; sentenceZh = r.native; }
+      else { sentence = f.frame.replace("___", vw.word); sentenceZh = f.frameZh.replace("___", zh); }
+      break;
+    }
+  }
+  return { word: w, zh, sentence, sentenceZh };
+}
+
 // key：替換時指定句框(frame)、轉換時指定操作(op)；frameKey：轉換指定句框；person：轉換指定人稱
 export function buildSession(lesson: PatternLesson, type: DrillType, key?: string, frameKey?: string, person?: PKey | "all"): Step[] {
   if (type === "Substitution") {
