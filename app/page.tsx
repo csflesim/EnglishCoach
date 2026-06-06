@@ -1070,7 +1070,7 @@ export default function TrainingPage() {
           <>
             <div className="text-xs uppercase tracking-widest text-slate-600">{step?.type === "Response" ? "示範答法 · 跟著說" : "正解 · 跟著複誦"}</div>
             <div className="text-2xl font-semibold text-accent">“{step?.answer}”</div>
-            {step?.nativeZh && <div className="text-sm text-slate-500">{step.nativeZh}</div>}
+            {showTranslation && step?.nativeZh && <div className="text-sm text-slate-500">{step.nativeZh}</div>}
             <div className="text-sm text-slate-400">你的反應：<span className={tierColor[tier(reaction)]}>{reaction.toFixed(1)}s · {tier(reaction)}</span></div>
             {!aiResult && heardText && <div className="mt-1 text-sm text-accent">你說的(即時辨識):「{heardText}」</div>}
             {aiRef.current && <div className="mt-1 text-xs text-slate-500">🤖 背景評分中,整輪結束後一次詳評</div>}
