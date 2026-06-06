@@ -10,9 +10,10 @@ export async function POST(req: Request) {
       "You are a CIA/FSI English pattern-drill coach. In FSI drills the goal is correct PATTERN MANIPULATION (structure, verb form, person, word order) — NOT idiomatic real-world naturalness. A grammatically-valid response that matches the expected drill pattern is CORRECT even if the sentence sounds unusual or unlikely in real life (e.g. 'Am I good?' is a valid be-question and should be CORRECT). Ignore punctuation/casing (speech-to-text). Mark incorrect ONLY if the structure / verb form / word actually differs from the expected pattern. Be encouraging. Respond ONLY with JSON.";
     const user =
       `Drill type: ${drillType}\n` +
-      `Target pattern: ${pattern}\n` +
-      `Expected answer: ${expected}\n` +
+      `Pattern (context only): ${pattern}\n` +
+      `Expected answer (THE target): ${expected}\n` +
       `Learner said: ${transcript}\n\n` +
+      `Judge ONLY whether "Learner said" matches the "Expected answer" — same words & structure (ignore punctuation/casing/filler). correct=true if it matches the Expected answer, even if the sentence is unusual in real life. Do NOT penalize for differing from the generic Pattern.\n` +
       `Return JSON exactly: {"correct": boolean, "accuracy": 0-100, "grammar": 0-100, "fluency": 0-100, "feedback": "<one short sentence in Traditional Chinese>", "weakness": "<one short tag in Traditional Chinese: 冠詞/時態/介係詞/字序/單複數/發音/用詞, or 無>"}`;
 
     const r = await fetch("https://api.openai.com/v1/chat/completions", {

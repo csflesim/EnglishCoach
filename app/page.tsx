@@ -365,7 +365,7 @@ export default function TrainingPage() {
         setHeardText(said);
         if (aiRef.current && said) {
           setScoring(true);
-          evaluate({ pattern: lessonRef.current.patternText, expected: cur.answer, transcript: said, drillType: cur.type }).then((res) => {
+          evaluate({ pattern: cur.groupTitle ?? lessonRef.current.patternText, expected: cur.answer, transcript: said, drillType: cur.type }).then((res) => {
             setScoring(false);
             setAiResult(res ? { ...res, transcript: said } : null);
             if (res && !res.correct) { logRep(cur, "wrong"); repWordMarkedRef.current = true; }
@@ -385,7 +385,7 @@ export default function TrainingPage() {
         const blob = new Blob(chunksRef.current, { type: rec.mimeType || "audio/webm" });
         const text = await transcribe(blob);
         let res: EvalResult | null = null;
-        if (text) res = await evaluate({ pattern: lessonRef.current.patternText, expected: cur.answer, transcript: text, drillType: cur.type });
+        if (text) res = await evaluate({ pattern: cur.groupTitle ?? lessonRef.current.patternText, expected: cur.answer, transcript: text, drillType: cur.type });
         setScoring(false);
         setAiResult(res ? { ...res, transcript: text ?? "" } : null);
         if (res && !res.correct) { logRep(cur, "wrong"); repWordMarkedRef.current = true; }
