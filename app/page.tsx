@@ -392,12 +392,11 @@ export default function TrainingPage() {
         const said = liveTranscriptRef.current.trim();
         setHeardText(said);
         if (aiRef.current && said) {
-          // 背景模式:不顯示對錯,只收集;唸完正解直接下一發,整輪結束後一次詳評
+          // 背景模式:只收集,整輪結束後一次詳評
           repsRef.current.push({ i: idxRef.current, cue: cur.cue, expected: cur.answer, said, type: cur.type, pattern: pat, nativeZh: cur.nativeZh });
         } else if (localMatchRef.current && said) {
-          // 純本地比對(AI 關):即時顯示對錯
+          // 純本地比對(AI 關):不即時顯示對錯,但答錯仍記入複習
           const r = localJudge(cur.answer, said);
-          setAiResult({ correct: r.correct, accuracy: r.accuracy, grammar: r.accuracy, fluency: 0, feedback: r.correct ? "✓ 與正解相符" : "與正解不同,再試一次", errors: [], transcript: said });
           if (!r.correct) { logRep(cur, "wrong"); repWordMarkedRef.current = true; }
         }
         revealAndContinue(cur);
