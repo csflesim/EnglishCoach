@@ -38,6 +38,12 @@ export async function getComboChecks(): Promise<{ checked: Set<string>; bad: Set
   for (const r of rows) { const k = comboKey(r.frame, r.word); checked.add(k); if (!r.ok) bad.add(k); }
   return { checked, bad };
 }
+// 後台用:列出被判定不通(ok=false)的組合
+export async function getBadList(): Promise<{ frame: string; word: string; reason: string | null }[]> {
+  if (!hasSupabase) return [];
+  const rows = await selectAll<{ frame: string; word: string; ok: boolean; reason: string | null }>("bad_combos", "frame,word,ok,reason");
+  return rows.filter((r) => !r.ok).map((r) => ({ frame: r.frame, word: r.word, reason: r.reason }));
+}
 // 記錄一批判斷結果(好壞都記 → 之後不再重判)
 export async function recordChecks(frame: string, results: { word: string; ok: boolean }[], reason = "ai"): Promise<void> {
   if (!hasSupabase || !results.length) return;

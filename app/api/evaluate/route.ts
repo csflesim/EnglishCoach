@@ -7,7 +7,7 @@ export async function POST(req: Request) {
   try {
     const { pattern, expected, transcript, drillType } = await req.json();
     const sys =
-      "You are an FSI English drill evaluator. Compare the learner's spoken response (from speech-to-text, so ignore minor punctuation/casing) to the expected target. Judge if it conveys the target correctly. Be encouraging but accurate. Respond ONLY with JSON.";
+      "You are a CIA/FSI English pattern-drill coach. In FSI drills the goal is correct PATTERN MANIPULATION (structure, verb form, person, word order) — NOT idiomatic real-world naturalness. A grammatically-valid response that matches the expected drill pattern is CORRECT even if the sentence sounds unusual or unlikely in real life (e.g. 'Am I good?' is a valid be-question and should be CORRECT). Ignore punctuation/casing (speech-to-text). Mark incorrect ONLY if the structure / verb form / word actually differs from the expected pattern. Be encouraging. Respond ONLY with JSON.";
     const user =
       `Drill type: ${drillType}\n` +
       `Target pattern: ${pattern}\n` +

@@ -24,12 +24,14 @@ import {
   getBookWords,
   getActiveWordbook,
   setActiveWordbook,
+  getBadList,
+  recordChecks,
   seedToDb,
   type VocabView,
 } from "@/lib/content";
 import { hasSupabase } from "@/lib/supabase";
 
-type Tab = "patterns" | "wordbook";
+type Tab = "patterns" | "wordbook" | "blocklist";
 
 export default function AdminPage() {
   const [, setTick] = useState(0);
@@ -57,7 +59,7 @@ export default function AdminPage() {
           <Link href="/" className="btn-ghost ml-auto px-3 py-1.5 text-xs">← 回前台</Link>
         </div>
         <div className="mx-auto flex max-w-4xl gap-1 px-4 pb-2">
-          {([["patterns", "句型管理"], ["wordbook", "詞本"]] as [Tab, string][]).map(([t, label]) => (
+          {([["patterns", "句型管理"], ["wordbook", "詞本"], ["blocklist", "封鎖名單"]] as [Tab, string][]).map(([t, label]) => (
             <button key={t} onClick={() => setTab(t)} className={`rounded-lg px-3 py-1.5 text-sm ${tab === t ? "bg-accent text-ink-950 font-semibold" : "text-slate-400 hover:bg-ink-800"}`}>{label}</button>
           ))}
         </div>
@@ -80,6 +82,7 @@ export default function AdminPage() {
           <>
             {tab === "patterns" && <PatternsAdmin onChange={refresh} />}
             {tab === "wordbook" && <WordbookAdmin onChange={refresh} />}
+            {tab === "blocklist" && <BlocklistAdmin />}
           </>
         )}
       </main>
@@ -288,6 +291,40 @@ function WordbookAdmin({ onChange }: { onChange: () => void }) {
             </div>
           </div>
         </>
+      )}
+    </div>
+  );
+}
+
+// ─────────── 封鎖名單(AI/手動 判定不通的 句框×單字)───────────
+function BlocklistAdmin() {
+  const [rows, setRows] = useState<{ frame: string; word: string; reason: string | null }[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  function load() { getBadList().then((r) => { setRows(r); setLoaded(true); }); }
+  useEffect(() => { load(); }, []);
+  async function allow(frame: string, word: string) {
+    await recordChecks(frame, [{ word, ok: true }], "manual-allow"); // 改回可用(已判過,不再排除也不重判)
+    setRows((rs) => rs.filter((r) => !(r.frame === frame && r.word === word)));
+  }
+  return (
+    <div className="card p-4">
+      <div className="mb-2 text-sm font-semibold text-slate-300">封鎖名單({rows.length}) · 被判「不通」而排除的組合</div>
+      <p className="mb-3 text-xs text-slate-500">AI 或你標記為不通的「句框 × 單字」。按「允許」可解除(視為可用,之後不再判斷也不排除)。</p>
+      {!loaded ? (
+        <p className="py-4 text-center text-xs text-slate-600">載入中…</p>
+      ) : rows.length === 0 ? (
+        <p className="py-4 text-center text-xs text-slate-600">目前沒有被封鎖的組合。</p>
+      ) : (
+        <ul className="space-y-1.5">
+          {rows.map((r) => (
+            <li key={`${r.frame}|${r.word}`} className="flex items-center gap-2 rounded-lg border border-ink-700 bg-ink-900/40 px-2.5 py-1.5 text-sm">
+              <code className="text-slate-400">{r.frame.replace("{S} {v}", "…").replace("{S}", "…")}</code>
+              <span className="font-semibold text-slate-100">{r.word}</span>
+              {r.reason && <span className="chip bg-ink-700 text-[10px] text-slate-500">{r.reason}</span>}
+              <button onClick={() => allow(r.frame, r.word)} className="ml-auto chip bg-accent/15 text-[11px] text-accent">允許</button>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );

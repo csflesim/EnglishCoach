@@ -8,7 +8,7 @@ export async function POST(req: Request) {
     const { frame, words } = await req.json();
     if (!frame || !Array.isArray(words) || !words.length) return Response.json({ bad: [] });
     const sys =
-      "You check English sentence frames. Given a frame with ___ as the blank and candidate words, return the words that make a GRAMMATICALLY WRONG or clearly UNNATURAL/IMPOSSIBLE sentence when inserted. Be conservative: only flag clearly bad ones; if a word is acceptable (even if slightly odd), do NOT flag it. Respond ONLY with JSON.";
+      "You are a CIA/FSI English pattern-drill coach checking drill frames. Given a frame with ___ and candidate words, return ONLY words that make the sentence GRAMMATICALLY IMPOSSIBLE when inserted (e.g. wrong part of speech for the slot, or it breaks the structure / can't form a sentence). In FSI drills, sentences that are grammatical but unusual/uncommon/unlikely in real life are ACCEPTABLE — do NOT flag those (e.g. 'Am I good?' is fine). Be very conservative; when in doubt, keep the word. Respond ONLY with JSON.";
     const user =
       `Frame: ${frame}\nCandidate words: ${JSON.stringify(words)}\n\n` +
       `Return JSON exactly: {"bad": ["<word that does NOT work in this frame>", ...]}`;
