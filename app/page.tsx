@@ -11,7 +11,6 @@ import {
   frameDisplay,
   candidateWords,
   availableModes,
-  subFrameCount,
   transformFrames,
   transformExample,
   drillTypeZh,
@@ -23,7 +22,7 @@ import {
   type Step,
   type PKey,
 } from "@/lib/mock";
-import { initProgress, markMode, lessonProgress, recommendNextLessonId, type ProgressMap } from "@/lib/progress";
+import { initProgress, markSession, lessonProgress, modeProgress, frameProgress, isSubDone, isTransDone, recommendNextLessonId, type ProgressMap } from "@/lib/progress";
 import { initContent, getActiveWordbook, getComboChecks, recordChecks, logErrors } from "@/lib/content";
 import { transcribe, checkFrame, sessionReview, type EvalResult, type SessionReview } from "@/lib/ai";
 import { logReview, getWordReviewMap, getDrillReviewMap, drillKey, repCountForBox, logDrill, type DrillReview } from "@/lib/review";
@@ -507,8 +506,11 @@ export default function TrainingPage() {
     // drill gap:整輪全對→box+1(間隔變長);有錯→歸零。
     // AI 背景模式:對錯要等整輪 AI 評分,故延後到分析完成再記(見 complete 的 effect)。
     if (!aiRef.current) logDrill(selectedId, drillType, lessonRef.current.patternText, sessionErrorRef.current);
-    // 記錄完成的模式 → 推進學習地圖
-    const np = markMode(progressRef.current, selectedId, drillType);
+    // 記錄完成的細粒度進度(人稱×句框×模式)→ 推進學習地圖
+    // 替換:句框存在 selectedOp;轉換:句框 selectedFrame、操作 selectedOp
+    const frame = drillType === "Substitution" ? selectedOp : selectedFrame;
+    const op = drillType === "Transformation" ? selectedOp : undefined;
+    const np = markSession(progressRef.current, selectedId, { mode: drillType, frame, person: selectedPerson, op });
     setProgress(np);
     progressRef.current = np;
     setMode("complete");
@@ -789,16 +791,16 @@ export default function TrainingPage() {
             const isSub = m.type === "Substitution";
             const isTrans = m.type === "Transformation";
             const hasSecond = isSub || isTrans;
-            const countLabel = isSub ? `${framesOf(lesson).length} 個句框` : isTrans ? `${lesson.transformation.length} 種變換` : "每次不同";
+            const mp = modeProgress(progress, lesson, m.type);
             const onClick = isSub ? () => setMode("selectSub") : isTrans ? () => setMode("selectTransFrame") : () => startSession(m.type);
             return (
               <button key={m.type} onClick={onClick} className="card flex w-full items-center gap-3 p-4 text-left transition hover:border-accent/50">
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent/15 text-sm font-bold text-accent">{i + 1}</span>
+                <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-sm font-bold ${mp.mastered ? "bg-accent text-ink-950" : "bg-accent/15 text-accent"}`}>{mp.mastered ? "✓" : i + 1}</span>
                 <div className="min-w-0 flex-1">
                   <div className="text-base font-semibold text-slate-100">{drillTypeZh[m.type]} <span className="text-xs font-normal text-slate-600">{m.type}</span></div>
                   <div className="text-xs text-slate-500">{m.desc}</div>
                 </div>
-                <span className="chip shrink-0 bg-ink-700 text-slate-300">{countLabel}{hasSecond ? " ›" : ""}</span>
+                <span className={`chip shrink-0 ${mp.mastered ? "bg-accent/15 text-accent" : "bg-ink-700 text-slate-300"}`}>句框 {mp.done}/{mp.total} 掌握{hasSecond ? " ›" : ""}</span>
               </button>
             );
           })}
@@ -818,15 +820,18 @@ export default function TrainingPage() {
           <p className="mt-1 text-sm text-slate-500">換一小部分 → 再延伸，由淺到深</p>
         </div>
         <div className="space-y-3">
-          {framesOf(lesson).map((f, i) => (
+          {framesOf(lesson).map((f, i) => {
+            const fp = frameProgress(progress, lesson, "Substitution", f.frame);
+            return (
             <button key={`${f.frame}-${i}`} onClick={() => { setSelectedFrame(f.frame); if (f.conj && !f.subj) setMode("selectSubPerson"); else startSession("Substitution", f.frame); }} className="card flex w-full items-center gap-3 p-4 text-left transition hover:border-accent/50">
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent/15 text-sm font-bold text-accent">{i + 1}</span>
+              <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-sm font-bold ${fp.mastered ? "bg-accent text-ink-950" : "bg-accent/15 text-accent"}`}>{fp.mastered ? "✓" : i + 1}</span>
               <div className="min-w-0 flex-1">
                 <code className="text-base font-semibold text-slate-100">{frameDisplay(f)}</code>
               </div>
-              <span className="chip shrink-0 bg-ink-700 text-slate-300">{subFrameCount(f)} 發</span>
+              <span className={`chip shrink-0 ${fp.mastered ? "bg-accent/15 text-accent" : "bg-ink-700 text-slate-300"}`}>{f.conj ? `人稱 ${fp.done}/${fp.total}` : (fp.mastered ? "已掌握" : "未練")}</span>
             </button>
-          ))}
+            );
+          })}
         </div>
       </Shell>
     );
@@ -850,9 +855,12 @@ export default function TrainingPage() {
             </div>
           </button>
           <div className="grid grid-cols-3 gap-3">
-            {PERSON_ORDER.map((p) => (
-              <button key={p} onClick={() => startSession("Substitution", selectedFrame, undefined, p)} className="card p-4 text-center font-semibold text-slate-100 transition hover:border-accent/50">{p}</button>
-            ))}
+            {PERSON_ORDER.map((p) => {
+              const done = isSubDone(progress, lesson.id, selectedFrame ?? "", p);
+              return (
+                <button key={p} onClick={() => startSession("Substitution", selectedFrame, undefined, p)} className={`card p-4 text-center font-semibold transition hover:border-accent/50 ${done ? "border-accent/40 text-accent" : "text-slate-100"}`}>{done ? "✓ " : ""}{p}</button>
+              );
+            })}
           </div>
         </div>
       </Shell>
@@ -869,15 +877,18 @@ export default function TrainingPage() {
           <h1 className="text-xl font-bold text-slate-100">先選要變換哪個句框</h1>
         </div>
         <div className="space-y-3">
-          {transformFrames(lesson).map((f, i) => (
+          {transformFrames(lesson).map((f, i) => {
+            const fp = frameProgress(progress, lesson, "Transformation", f.frame);
+            return (
             <button key={`${f.frame}-${i}`} onClick={() => { setSelectedFrame(f.frame); setMode("selectOp"); }} className="card flex w-full items-center gap-3 p-4 text-left transition hover:border-accent/50">
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent/15 text-sm font-bold text-accent">{i + 1}</span>
+              <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-sm font-bold ${fp.mastered ? "bg-accent text-ink-950" : "bg-accent/15 text-accent"}`}>{fp.mastered ? "✓" : i + 1}</span>
               <div className="min-w-0 flex-1">
                 <code className="text-base font-semibold text-slate-100">{frameDisplay(f)}</code>
               </div>
-              <span className="chip shrink-0 bg-ink-700 text-slate-300">{subFrameCount(f)} 句</span>
+              <span className={`chip shrink-0 ${fp.mastered ? "bg-accent/15 text-accent" : "bg-ink-700 text-slate-300"}`}>人稱×操作 {fp.done}/{fp.total}</span>
             </button>
-          ))}
+            );
+          })}
         </div>
       </Shell>
     );
@@ -899,9 +910,12 @@ export default function TrainingPage() {
           <div className="mb-4">
             <div className="mb-2 text-xs text-slate-500">人稱(主詞)</div>
             <div className="flex flex-wrap gap-2">
-              {PERSON_ORDER.map((p) => (
-                <button key={p} onClick={() => setSelectedPerson(p)} className={`chip ${selectedPerson === p ? "bg-accent text-ink-950" : "bg-ink-800 text-slate-300"}`}>{p}</button>
-              ))}
+              {PERSON_ORDER.map((p) => {
+                const pdone = TRANSFORM_OPS.every((op) => isTransDone(progress, lesson.id, selectedFrame ?? "", p, op));
+                return (
+                  <button key={p} onClick={() => setSelectedPerson(p)} className={`chip ${selectedPerson === p ? "bg-accent text-ink-950" : pdone ? "bg-ink-800 text-accent" : "bg-ink-800 text-slate-300"}`}>{pdone ? "✓ " : ""}{p}</button>
+                );
+              })}
             </div>
           </div>
         )}
@@ -909,13 +923,16 @@ export default function TrainingPage() {
         <div className="space-y-3">
           {TRANSFORM_OPS.map((op) => {
             const ex = transformExample(lesson, op, selectedFrame, selectedPerson);
+            const person = fObj?.subj ?? selectedPerson;
+            const done = isTransDone(progress, lesson.id, selectedFrame ?? "", person, op);
             return (
               <button key={op} onClick={() => startSession("Transformation", op, selectedFrame, selectedPerson)} className="card flex w-full items-center gap-3 p-4 text-left transition hover:border-accent/50">
+                <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-sm font-bold ${done ? "bg-accent text-ink-950" : "bg-accent/15 text-accent"}`}>{done ? "✓" : "→"}</span>
                 <div className="min-w-0 flex-1">
                   <div className="text-base font-semibold text-slate-100">{opLabel[op]}</div>
                   <div className="text-xs text-slate-500">例：{ex.answer}</div>
                 </div>
-                <span className="chip shrink-0 bg-ink-700 text-slate-300">{subFrameCount(fObj!)} 發</span>
+                <span className="chip shrink-0 bg-ink-700 text-slate-300">{done ? `✓ ${person}` : person}</span>
               </button>
             );
           })}
