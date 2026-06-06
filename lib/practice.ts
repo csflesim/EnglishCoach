@@ -1,5 +1,5 @@
 // 真實練習紀錄。寫入 practice_sessions;供「我的」頁數據 + 打卡日曆。
-import { hasSupabase, insertRows, selectAll } from "./supabase";
+import { hasSupabase, insertScoped, selectAllScoped } from "./supabase";
 
 export type PracticeSession = {
   day: string;
@@ -26,7 +26,7 @@ export async function logSession(s: {
   avg_reaction?: number | null;
 }): Promise<void> {
   if (!hasSupabase) return;
-  await insertRows("practice_sessions", [{
+  await insertScoped("practice_sessions", [{
     day: localDay(),
     started_at: new Date().toISOString(),
     duration_sec: Math.round(s.duration_sec),
@@ -39,7 +39,7 @@ export async function logSession(s: {
 
 export async function getSessions(): Promise<PracticeSession[]> {
   if (!hasSupabase) return [];
-  return selectAll<PracticeSession>("practice_sessions");
+  return selectAllScoped<PracticeSession>("practice_sessions");
 }
 
 // 每日總分鐘數 map: { "YYYY-MM-DD": minutes }

@@ -16,6 +16,75 @@ function sb(): SupabaseClient | null {
   return client;
 }
 
+// ── 目前登入的用戶(供「每位用戶資料獨立」的 *Scoped 函式)──
+let activeUserId: string | null = null;
+export function setActiveUserId(id: string | null) { activeUserId = id; }
+export function getActiveUserId(): string | null { return activeUserId; }
+
+// 讀「本用戶」全部列
+export async function selectAllScoped<T = Record<string, unknown>>(table: string, columns = "*"): Promise<T[]> {
+  const c = sb();
+  if (!c || !activeUserId) return [];
+  try {
+    const all: T[] = [];
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await c.from(table).select(columns).eq("user_id", activeUserId).range(from, from + 999);
+      if (error) return all;
+      const rows = (data ?? []) as T[];
+      all.push(...rows);
+      if (rows.length < 1000) break;
+    }
+    return all;
+  } catch { return []; }
+}
+// 讀「本用戶」+ 另一條件
+export async function selectEqScoped<T = Record<string, unknown>>(table: string, col: string, val: string, columns = "*"): Promise<T[]> {
+  const c = sb();
+  if (!c || !activeUserId) return [];
+  try {
+    const { data, error } = await c.from(table).select(columns).eq(col, val).eq("user_id", activeUserId);
+    if (error) return [];
+    return (data ?? []) as T[];
+  } catch { return []; }
+}
+// 插入(自動帶 user_id)
+export async function insertScoped(table: string, rows: Record<string, unknown>[]): Promise<void> {
+  const c = sb();
+  if (!c || !activeUserId || !rows.length) return;
+  try { await c.from(table).insert(rows.map((r) => ({ ...r, user_id: activeUserId }))); } catch { /* ignore */ }
+}
+// upsert(自動帶 user_id);成功回 null
+export async function upsertScoped(table: string, rows: Record<string, unknown>[], onConflict?: string): Promise<string | null> {
+  const c = sb();
+  if (!c) return "未設定 Supabase";
+  if (!activeUserId) return "未登入";
+  try {
+    for (let i = 0; i < rows.length; i += 200) {
+      const chunk = rows.slice(i, i + 200).map((r) => ({ ...r, user_id: activeUserId }));
+      const { error } = await c.from(table).upsert(chunk, onConflict ? { onConflict } : undefined);
+      if (error) return error.message;
+    }
+    return null;
+  } catch (e) { return String(e); }
+}
+// upsert + 回傳(自動帶 user_id)
+export async function upsertReturningScoped<T = Record<string, unknown>>(
+  table: string, rows: Record<string, unknown>[], onConflict: string, columns = "*",
+): Promise<T[]> {
+  const c = sb();
+  if (!c || !activeUserId || !rows.length) return [];
+  try {
+    const out: T[] = [];
+    for (let i = 0; i < rows.length; i += 500) {
+      const chunk = rows.slice(i, i + 500).map((r) => ({ ...r, user_id: activeUserId }));
+      const { data, error } = await c.from(table).upsert(chunk, { onConflict, ignoreDuplicates: false }).select(columns);
+      if (error) return out;
+      out.push(...((data ?? []) as T[]));
+    }
+    return out;
+  } catch { return []; }
+}
+
 export async function selectAll<T = Record<string, unknown>>(table: string, columns = "*"): Promise<T[]> {
   const c = sb();
   if (!c) return [];

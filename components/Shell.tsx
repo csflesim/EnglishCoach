@@ -1,7 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { applyActiveUser, logout, type AuthUser } from "@/lib/auth";
+import { hasSupabase } from "@/lib/supabase";
 
 const nav = [
   { href: "/", label: "訓練", en: "Training", icon: "⚡" },
@@ -11,8 +14,25 @@ const nav = [
   { href: "/progress", label: "我的", en: "Mine", icon: "▤" },
 ];
 
+// render 階段就同步套用目前登入者(確保子頁讀資料前 user id 已設定)
+const initialUser = typeof window !== "undefined" ? applyActiveUser() : null;
+
 export default function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [user, setUser] = useState<AuthUser | null>(initialUser);
+  const [checked, setChecked] = useState(false);
+
+  useEffect(() => {
+    const u = applyActiveUser();
+    setUser(u);
+    setChecked(true);
+    if (hasSupabase && !u) router.replace("/login"); // 需登入(永久登入:user 存 localStorage)
+  }, [router]);
+
+  // 需登入但尚未登入 → 不渲染內容(導向登入頁)
+  if (hasSupabase && checked && !user) return null;
+
   return (
     <div className="mx-auto flex min-h-screen max-w-3xl flex-col px-4 py-6">
       {/* top brand */}
@@ -22,7 +42,11 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           <div className="text-sm font-bold">English Reflex Coach</div>
           <div className="text-[11px] text-slate-500">FSI 反射訓練器</div>
         </div>
-        <Link href="/admin" className="ml-auto text-slate-600 hover:text-slate-300" title="後台">⚙</Link>
+        <div className="ml-auto flex items-center gap-3">
+          {user && <span className="text-xs text-slate-500">{user.username}</span>}
+          {user && <button onClick={() => { logout(); router.replace("/login"); }} className="text-xs text-slate-600 hover:text-slate-300" title="登出">登出</button>}
+          <Link href="/admin" className="text-slate-600 hover:text-slate-300" title="後台">⚙</Link>
+        </div>
       </header>
 
       <main className="flex-1 pb-24">{children}</main>

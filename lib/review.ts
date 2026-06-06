@@ -1,7 +1,7 @@
 // 複習引擎(SRS)。單詞 + 句子共用 review_items / review_events。
 // 需要 Supabase;無金鑰則為 no-op(複習功能需 DB)。
 
-import { hasSupabase, selectEq, upsertReturning, insertRows, updateEq } from "./supabase";
+import { hasSupabase, selectEqScoped, upsertReturningScoped, insertRows, updateEq } from "./supabase";
 
 export type ReviewKind = "word" | "sentence" | "drill";
 export type ReviewEvent = "wrong" | "unknown" | "correct" | "seen";
@@ -52,7 +52,7 @@ export async function logReview(args: {
   event: ReviewEvent;
 }): Promise<void> {
   if (!hasSupabase) return;
-  const existing = (await selectEq<ReviewItem>("review_items", "ref", args.ref))[0];
+  const existing = (await selectEqScoped<ReviewItem>("review_items", "ref", args.ref))[0];
   const s = schedule(existing, args.event);
   const now = new Date().toISOString();
   const bump = args.event === "wrong" || args.event === "unknown" ? 1 : 0;
@@ -71,7 +71,7 @@ export async function logReview(args: {
   };
   if (args.event === "wrong") patch.last_wrong_at = now;
   if (args.event === "unknown") patch.marked_unknown_at = now;
-  const rows = await upsertReturning<{ id: number }>("review_items", [patch], "ref", "id");
+  const rows = await upsertReturningScoped<{ id: number }>("review_items", [patch], "user_id,ref", "id");
   const id = rows[0]?.id;
   if (id != null) await insertRows("review_events", [{ item_id: id, event: args.event }]);
   // 鏡像 box 到 vocabulary(方便直接查;ref 即原字)
@@ -79,7 +79,7 @@ export async function logReview(args: {
 }
 
 export async function getReviewItems(kind: ReviewKind): Promise<ReviewItem[]> {
-  const items = await selectEq<ReviewItem>("review_items", "kind", kind);
+  const items = await selectEqScoped<ReviewItem>("review_items", "kind", kind);
   const rank = (s: ReviewStatus) => ({ weak: 0, learning: 1, new: 2, known: 3 }[s] ?? 2);
   return items.sort((a, b) => rank(a.status) - rank(b.status) || (a.next_review ?? "").localeCompare(b.next_review ?? ""));
 }
@@ -124,7 +124,7 @@ export async function logDrill(lessonId: string, type: string, text: string, had
 export async function getDrillReviewMap(): Promise<Map<string, DrillReview>> {
   const m = new Map<string, DrillReview>();
   if (!hasSupabase) return m;
-  const items = await selectEq<ReviewItem>("review_items", "kind", "drill");
+  const items = await selectEqScoped<ReviewItem>("review_items", "kind", "drill");
   for (const it of items) m.set(it.ref, { box: it.box ?? 0, next_review: it.next_review });
   return m;
 }

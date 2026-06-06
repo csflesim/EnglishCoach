@@ -19,7 +19,7 @@ import {
   type SubFrame,
   type PKey,
 } from "./mock";
-import { hasSupabase, selectAll, upsertRows } from "./supabase";
+import { hasSupabase, selectAllScoped, upsertScoped } from "./supabase";
 
 const LKEY = "erc_progress_v2";
 
@@ -59,7 +59,7 @@ export async function initProgress(): Promise<ProgressMap> {
   if (loaded) return cache ?? {};
   loaded = true;
   if (hasSupabase) {
-    const rows = await selectAll<{ lesson_id: string; drill_type: string }>("progress");
+    const rows = await selectAllScoped<{ lesson_id: string; drill_type: string }>("progress");
     const m: ProgressMap = {};
     for (const r of rows) (m[r.lesson_id] = m[r.lesson_id] ?? []).push(r.drill_type);
     cache = m;
@@ -105,7 +105,7 @@ function addKeys(lessonId: string, keys: string[]): ProgressMap {
   const set = new Set(base[lessonId] ?? []);
   keys.forEach((k) => set.add(k));
   cache = { ...base, [lessonId]: Array.from(set) };
-  if (hasSupabase && keys.length) upsertRows("progress", keys.map((k) => ({ lesson_id: lessonId, drill_type: k })), "lesson_id,drill_type");
+  if (hasSupabase && keys.length) upsertScoped("progress", keys.map((k) => ({ lesson_id: lessonId, drill_type: k })), "user_id,lesson_id,drill_type");
   else writeLocal(cache);
   return cache;
 }

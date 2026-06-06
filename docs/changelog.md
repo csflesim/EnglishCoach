@@ -106,7 +106,19 @@
 
 ---
 
-## 10. Supabase 資料表(目前實際使用)
+## 10. 多用戶帳號 + 資料獨立(2026-06-06)
+
+- **登入/註冊**:`/login` 頁(帳號+密碼);**永久登入**(登入狀態存 localStorage,不過期,直到登出)。
+- **密碼安全**:伺服器端 `crypto.scrypt` 雜湊(salt:hash),**不存明文**;透過 HTTPS 傳輸。API:`/api/auth/signup`、`/api/auth/login`(優先用 `SUPABASE_SERVICE_ROLE_KEY`,沒有則退回 anon)。
+- **每位用戶資料獨立**:`progress` / `review_items` / `practice_sessions` / `error_log` 都加 `user_id`,讀寫經 `*Scoped` 函式自動依目前登入者過濾;唯一鍵改為含 `user_id`(見 migrate_v11)。全域內容(課程/單字/詞本/bad_combos)仍共用。
+- **登入閘**:`Shell` 未登入自動導向 `/login`;右上顯示帳號 + 登出。
+- **後台帳號管理**:`/admin` →「帳號管理」分頁,可建立/刪除帳號、看清單(不顯示密碼)。
+- **users 表**:`id, username(unique), password_hash, created_at`(RLS 匿名可讀寫)。
+- ⚠️ **安全備註**:目前資料隔離為「應用層」(共用 anon key,RLS 仍匿名可讀寫)。要做到 DB 層強隔離,建議改用 Supabase Auth + 每表 `auth.uid()=user_id` 的 RLS,並為 auth 路由設 service role key。
+
+---
+
+## 11. Supabase 資料表(目前實際使用)
 
 | 表 | 用途 |
 | :--- | :--- |
@@ -118,6 +130,7 @@
 | `practice_sessions` | 每輪練習紀錄 |
 | `error_log` | 每筆錯誤分類(供長期分析) |
 | `bad_combos` | 句框×單字 判定快取(ok 旗標) |
+| `users` | 帳號(username, password_hash[scrypt], created_at) |
 
 - **RLS**:自用版「匿名可讀寫」。**雙模式**:無金鑰 → 全部退回 localStorage。
 - **SQL 遷移**:`supabase/` 下的 `migrate_v*.sql`(v3 詞本 → v10 error_log)需在 Supabase SQL Editor 依序執行。

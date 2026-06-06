@@ -29,15 +29,19 @@ import {
   seedToDb,
   type VocabView,
 } from "@/lib/content";
-import { hasSupabase } from "@/lib/supabase";
+import { hasSupabase, selectAll, deleteWhere } from "@/lib/supabase";
+import { createAccount, getCurrentUser } from "@/lib/auth";
 
-type Tab = "patterns" | "wordbook" | "blocklist";
+type Tab = "patterns" | "wordbook" | "blocklist" | "accounts";
 
 export default function AdminPage() {
   const [, setTick] = useState(0);
   const [ready, setReady] = useState(false);
   const refresh = () => setTick((t) => t + 1);
-  useEffect(() => { initContent().then(() => { setReady(true); refresh(); }); }, []);
+  useEffect(() => {
+    if (hasSupabase && !getCurrentUser()) { if (typeof window !== "undefined") window.location.href = "/login"; return; }
+    initContent().then(() => { setReady(true); refresh(); });
+  }, []);
   const [tab, setTab] = useState<Tab>("patterns");
   const [seedMsg, setSeedMsg] = useState("");
   const [seeding, setSeeding] = useState(false);
@@ -59,7 +63,7 @@ export default function AdminPage() {
           <Link href="/" className="btn-ghost ml-auto px-3 py-1.5 text-xs">← 回前台</Link>
         </div>
         <div className="mx-auto flex max-w-4xl gap-1 px-4 pb-2">
-          {([["patterns", "句型管理"], ["wordbook", "詞本"], ["blocklist", "封鎖名單"]] as [Tab, string][]).map(([t, label]) => (
+          {([["patterns", "句型管理"], ["wordbook", "詞本"], ["blocklist", "封鎖名單"], ["accounts", "帳號管理"]] as [Tab, string][]).map(([t, label]) => (
             <button key={t} onClick={() => setTab(t)} className={`rounded-lg px-3 py-1.5 text-sm ${tab === t ? "bg-accent text-ink-950 font-semibold" : "text-slate-400 hover:bg-ink-800"}`}>{label}</button>
           ))}
         </div>
@@ -83,6 +87,7 @@ export default function AdminPage() {
             {tab === "patterns" && <PatternsAdmin onChange={refresh} />}
             {tab === "wordbook" && <WordbookAdmin onChange={refresh} />}
             {tab === "blocklist" && <BlocklistAdmin />}
+            {tab === "accounts" && <AccountsAdmin />}
           </>
         )}
       </main>
@@ -325,6 +330,78 @@ function BlocklistAdmin() {
             </li>
           ))}
         </ul>
+      )}
+    </div>
+  );
+}
+
+// ─────────── 帳號管理(多用戶)───────────
+type AdminUser = { id: number; username: string; created_at: string };
+function AccountsAdmin() {
+  const [rows, setRows] = useState<AdminUser[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+  const me = getCurrentUser();
+
+  function load() { selectAll<AdminUser>("users", "id,username,created_at").then((r) => { setRows(r.sort((a, b) => a.id - b.id)); setLoaded(true); }); }
+  useEffect(() => { load(); }, []);
+
+  async function create() {
+    setMsg(""); setBusy(true);
+    const r = await createAccount(username.trim(), password);
+    setBusy(false);
+    if (r.ok) { setMsg(`✓ 已建立帳號:${username.trim()}`); setUsername(""); setPassword(""); load(); }
+    else setMsg(r.error || "建立失敗");
+  }
+  async function remove(u: AdminUser) {
+    if (me && String(u.id) === me.id) { setMsg("不能刪除自己目前登入的帳號"); return; }
+    if (!confirm(`刪除帳號「${u.username}」?該帳號的學習資料會變成孤立(不會自動刪)。`)) return;
+    await deleteWhere("users", "id", String(u.id));
+    load();
+  }
+
+  return (
+    <div className="card p-4">
+      <div className="mb-2 text-sm font-semibold text-slate-300">帳號管理({rows.length}) · 多用戶</div>
+      <p className="mb-3 text-xs text-slate-500">每位用戶的學習資料(進度 / 複習 / 練習 / 錯誤)完全獨立。密碼以 scrypt 雜湊儲存,不存明文。</p>
+
+      {!hasSupabase ? (
+        <p className="py-4 text-center text-xs text-gold">需連 Supabase 才能管理帳號。</p>
+      ) : (
+        <>
+          <div className="mb-4 flex flex-wrap items-end gap-2 rounded-lg border border-ink-700 bg-ink-900/40 p-3">
+            <div className="flex-1">
+              <label className="mb-1 block text-[11px] text-slate-500">新帳號</label>
+              <input value={username} onChange={(e) => setUsername(e.target.value)} autoCapitalize="none" className="w-full rounded-lg border border-ink-700 bg-ink-900 px-2.5 py-2 text-sm text-slate-100 outline-none focus:border-accent" placeholder="username" />
+            </div>
+            <div className="flex-1">
+              <label className="mb-1 block text-[11px] text-slate-500">密碼</label>
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full rounded-lg border border-ink-700 bg-ink-900 px-2.5 py-2 text-sm text-slate-100 outline-none focus:border-accent" placeholder="••••" />
+            </div>
+            <button onClick={create} disabled={busy || !username.trim() || !password} className="btn-primary px-4 py-2 text-sm">{busy ? "建立中…" : "建立帳號"}</button>
+          </div>
+          {msg && <p className="mb-3 text-xs text-accent">{msg}</p>}
+
+          {!loaded ? (
+            <p className="py-4 text-center text-xs text-slate-600">載入中…</p>
+          ) : rows.length === 0 ? (
+            <p className="py-4 text-center text-xs text-slate-600">還沒有任何帳號。</p>
+          ) : (
+            <ul className="space-y-1.5">
+              {rows.map((u) => (
+                <li key={u.id} className="flex items-center gap-2 rounded-lg border border-ink-700 bg-ink-900/40 px-2.5 py-1.5 text-sm">
+                  <span className="font-semibold text-slate-100">{u.username}</span>
+                  {me && String(u.id) === me.id && <span className="chip bg-accent/15 text-[10px] text-accent">目前登入</span>}
+                  <span className="ml-auto text-[10px] text-slate-600">{u.created_at?.slice(0, 10)}</span>
+                  <button onClick={() => remove(u)} className="chip bg-red-500/15 text-[11px] text-red-400">刪除</button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
       )}
     </div>
   );

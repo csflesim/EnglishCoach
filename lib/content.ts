@@ -17,7 +17,7 @@ import {
   type Cycle,
   type Unit,
 } from "./mock";
-import { hasSupabase, selectAll, selectIn, upsertRows, insertRows, deleteWhere, countContains, countRows, pageVocabByBook } from "./supabase";
+import { hasSupabase, selectAll, selectAllScoped, selectIn, upsertRows, insertRows, insertScoped, deleteWhere, countContains, countRows, pageVocabByBook } from "./supabase";
 
 type CycleRow = { cycle: number; title: string; clb: string };
 type UnitRow = { unit: number; cycle: number; goal: string; focus: string; pattern: string; lesson_id: string | null };
@@ -31,11 +31,11 @@ let applied = false;
 // 錯誤紀錄:每次 AI 判錯,把每個錯誤類別逐筆寫入 error_log(供長期分析)
 export async function logErrors(kinds: string[], meta: { expected?: string; said?: string; lessonId?: string }): Promise<void> {
   if (!hasSupabase || !kinds.length) return;
-  await insertRows("error_log", kinds.map((kind) => ({ kind, expected: meta.expected ?? null, said: meta.said ?? null, lesson_id: meta.lessonId ?? null })));
+  await insertScoped("error_log", kinds.map((kind) => ({ kind, expected: meta.expected ?? null, said: meta.said ?? null, lesson_id: meta.lessonId ?? null })));
 }
 export async function getErrorStats(): Promise<{ tag: string; count: number }[]> {
   if (!hasSupabase) return [];
-  const rows = await selectAll<{ kind: string }>("error_log", "kind");
+  const rows = await selectAllScoped<{ kind: string }>("error_log", "kind");
   const m: Record<string, number> = {};
   for (const r of rows) m[r.kind] = (m[r.kind] ?? 0) + 1;
   return Object.entries(m).map(([tag, count]) => ({ tag, count })).sort((a, b) => b.count - a.count);
