@@ -20,6 +20,27 @@ export async function checkFrame(frame: string, words: string[]): Promise<string
   }
 }
 
+export type SessionRepResult = { i: number; correct: boolean; errors: string[] };
+export type SessionReview = { results: SessionRepResult[]; summary: string; tips: string[] };
+// 整輪一次性評分(背景模式:練完才送一次)。回傳每發對錯 + 整體弱點總結。
+export async function sessionReview(p: {
+  pattern: string;
+  reps: { expected: string; said: string; type?: string }[];
+}): Promise<SessionReview | null> {
+  try {
+    const r = await fetch("/api/session-review", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(p) });
+    const j = await r.json();
+    if (j.error || !Array.isArray(j.results)) return null;
+    return {
+      results: (j.results as SessionRepResult[]).map((x) => ({ i: x.i, correct: !!x.correct, errors: Array.isArray(x.errors) ? x.errors : [] })),
+      summary: typeof j.summary === "string" ? j.summary : "",
+      tips: Array.isArray(j.tips) ? j.tips : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
 export type LearnAnalysis = { summary: string; tips: string[] };
 export async function analyzeLearning(data: unknown): Promise<LearnAnalysis | null> {
   try {

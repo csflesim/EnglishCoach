@@ -25,13 +25,15 @@ import {
 } from "@/lib/mock";
 import { initProgress, markMode, lessonProgress, recommendNextLessonId, type ProgressMap } from "@/lib/progress";
 import { initContent, getActiveWordbook, getComboChecks, recordChecks, logErrors } from "@/lib/content";
-import { transcribe, evaluate, checkFrame, type EvalResult } from "@/lib/ai";
+import { transcribe, checkFrame, sessionReview, type EvalResult, type SessionReview } from "@/lib/ai";
 import { logReview, getWordReviewMap, getDrillReviewMap, drillKey, repCountForBox, logDrill, type DrillReview } from "@/lib/review";
 import { logSession } from "@/lib/practice";
 import { localJudge } from "@/lib/match";
 
 type Mode = "home" | "select" | "selectSub" | "selectSubPerson" | "selectTransFrame" | "selectOp" | "running" | "complete";
 type RunPhase = "groupIntro" | "cue" | "listening" | "speaking" | "reveal";
+// 背景 AI 模式:練習時只收集每發,整輪結束後一次評分分析
+type SessionRep = { i: number; cue: string; expected: string; said: string; type: DrillType; pattern: string; nativeZh?: string };
 
 const SILENCE_MS = 900;
 const MIN_SPEECH_MS = 250;
@@ -89,9 +91,13 @@ export default function TrainingPage() {
   const [progress, setProgress] = useState<ProgressMap>({});
   const [, setContentTick] = useState(0);
   const [aiOn, setAiOn] = useState(false);
-  const [scoring, setScoring] = useState(false);
   const [aiResult, setAiResult] = useState<(EvalResult & { transcript?: string }) | null>(null);
   const [markedMsg, setMarkedMsg] = useState("");
+  const [sessionAi, setSessionAi] = useState<SessionReview | null>(null);
+  const [sessionAiLoading, setSessionAiLoading] = useState(false);
+  const [sessionAiMsg, setSessionAiMsg] = useState("");
+  const repsRef = useRef<SessionRep[]>([]); // 本輪收集的每一發(供結束後 AI 分析)
+  const batchDoneRef = useRef(false); // 防止整輪分析重複執行
   const progressRef = useRef<ProgressMap>({});
   progressRef.current = progress;
   const aiRef = useRef(false);
@@ -379,53 +385,45 @@ export default function TrainingPage() {
     // 給辨識一點時間收尾,再讀最終文字
     const usedWebSpeech = webSpeechActiveRef.current;
     stopWebSpeech();
+    const pat = cur.groupTitle ?? lessonRef.current.patternText;
     if (usedWebSpeech) {
       schedule(() => {
         const said = liveTranscriptRef.current.trim();
         setHeardText(said);
-        if (aiRef.current && said) {
-          setScoring(true);
-          evaluate({ pattern: cur.groupTitle ?? lessonRef.current.patternText, expected: cur.answer, transcript: said, drillType: cur.type }).then((res) => {
-            setScoring(false);
-            setAiResult(res ? { ...res, transcript: said } : null);
-            if (res && !res.correct) { logRep(cur, "wrong"); repWordMarkedRef.current = true; }
-            if (res?.errors?.length) { logErrors(res.errors, { expected: cur.answer, said, lessonId: lessonRef.current?.id ?? selectedId }); }
-            revealAndContinue(cur);
-          });
-        } else if (localMatchRef.current && said) {
-          // 本地比對(免費):縮寫等價、忽略標點大小寫
+        // 本地比對:即時視覺回饋(免費、不卡)。AI 模式下不在此記分,留給整輪 AI 分析。
+        if (localMatchRef.current && said) {
           const r = localJudge(cur.answer, said);
-          setAiResult({ correct: r.correct, accuracy: r.accuracy, grammar: r.accuracy, fluency: 0, feedback: r.correct ? "✓ 與正解相符" : "與正解不同,再試一次", errors: [], transcript: said });
-          if (!r.correct) { logRep(cur, "wrong"); repWordMarkedRef.current = true; }
-          revealAndContinue(cur);
-        } else {
-          revealAndContinue(cur);
+          setAiResult({ correct: r.correct, accuracy: r.accuracy, grammar: r.accuracy, fluency: 0, feedback: aiRef.current ? (r.correct ? "✓ 與正解相符(AI 將於結束後詳評)" : "與正解不同(AI 將於結束後詳評)") : (r.correct ? "✓ 與正解相符" : "與正解不同,再試一次"), errors: [], transcript: said });
+          if (!aiRef.current && !r.correct) { logRep(cur, "wrong"); repWordMarkedRef.current = true; }
         }
+        if (aiRef.current && said) {
+          // 背景模式:只收集,不等 AI;整輪結束後一次評分
+          repsRef.current.push({ i: idxRef.current, cue: cur.cue, expected: cur.answer, said, type: cur.type, pattern: pat, nativeZh: cur.nativeZh });
+        }
+        revealAndContinue(cur);
       }, 350);
       return;
     }
     const rec = recorderRef.current;
     if (aiRef.current && micRef.current && rec && rec.state !== "inactive") {
-      setScoring(true);
+      // Whisper 路徑:背景轉寫後收集本發(不卡流程),整輪結束後一次評分
+      const myChunks = chunksRef.current;
+      const stepIdx = idxRef.current;
       rec.onstop = async () => {
-        const blob = new Blob(chunksRef.current, { type: rec.mimeType || "audio/webm" });
+        const blob = new Blob(myChunks, { type: rec.mimeType || "audio/webm" });
         const text = await transcribe(blob);
-        let res: EvalResult | null = null;
-        if (text) res = await evaluate({ pattern: cur.groupTitle ?? lessonRef.current.patternText, expected: cur.answer, transcript: text, drillType: cur.type });
-        setScoring(false);
-        setAiResult(res ? { ...res, transcript: text ?? "" } : null);
-        if (res && !res.correct) { logRep(cur, "wrong"); repWordMarkedRef.current = true; }
-        if (res?.errors?.length) { logErrors(res.errors, { expected: cur.answer, said: text ?? "", lessonId: lessonRef.current?.id ?? selectedId }); }
-        revealAndContinue(cur);
+        if (text) repsRef.current.push({ i: stepIdx, cue: cur.cue, expected: cur.answer, said: text, type: cur.type, pattern: pat, nativeZh: cur.nativeZh });
       };
-      try { rec.stop(); } catch { setScoring(false); revealAndContinue(cur); }
+      try { rec.stop(); } catch {}
+      revealAndContinue(cur);
     } else {
       revealAndContinue(cur);
     }
   }
   function revealAndContinue(cur: Step) {
-    // 練過就讓單字升 box(由易到難推進);若已標不熟/答錯則不記
-    if (!repWordMarkedRef.current && cur.cue) logWord(cur, "correct");
+    // 練過就讓單字升 box(由易到難推進);若已標不熟/答錯則不記。
+    // AI 背景模式:不在此自動記「答對」,由整輪結束後的 AI 評分統一判定。
+    if (!repWordMarkedRef.current && cur.cue && !aiRef.current) logWord(cur, "correct");
     if (echoRef.current && cur.nativeZh) {
       runEcho(cur.answer, cur.nativeZh);
     } else {
@@ -499,13 +497,55 @@ export default function TrainingPage() {
     const ts = timesRef.current;
     const avg = ts.length ? ts.reduce((a, b) => a + b, 0) / ts.length : null;
     logSession({ duration_sec: dur, drill_type: drillType, lesson_id: selectedId, reps: stepsRef.current.length, avg_reaction: avg });
-    // drill gap:整輪全對→box+1(間隔變長);有錯→歸零
-    logDrill(selectedId, drillType, lessonRef.current.patternText, sessionErrorRef.current);
+    // drill gap:整輪全對→box+1(間隔變長);有錯→歸零。
+    // AI 背景模式:對錯要等整輪 AI 評分,故延後到分析完成再記(見 complete 的 effect)。
+    if (!aiRef.current) logDrill(selectedId, drillType, lessonRef.current.patternText, sessionErrorRef.current);
     // 記錄完成的模式 → 推進學習地圖
     const np = markMode(progressRef.current, selectedId, drillType);
     setProgress(np);
     progressRef.current = np;
     setMode("complete");
+  }
+
+  // 整輪結束後一次性 AI 評分:把收集到的每一發送一次,回傳每發對錯 + 弱點總結。
+  // 寫入 SRS(對→升 box、錯→進複習) + error_log + 延後的 drill gap。
+  async function runSessionReview() {
+    if (batchDoneRef.current) return;
+    batchDoneRef.current = true;
+    const reps = repsRef.current.slice();
+    const lid = lessonRef.current?.id ?? selectedId;
+    const pat = lessonRef.current?.patternText ?? "";
+    if (!reps.length) { logDrill(selectedId, drillType, pat, sessionErrorRef.current); return; }
+
+    setSessionAiLoading(true);
+    setSessionAiMsg("");
+    const review = await sessionReview({ pattern: pat, reps: reps.map((r) => ({ expected: r.expected, said: r.said, type: r.type })) });
+    setSessionAiLoading(false);
+
+    // 對映回每一發(送出順序 = 回傳 i)。AI 失敗 → 用本地比對兜底。
+    const verdicts = new Map<number, { correct: boolean; errors: string[] }>();
+    if (review) for (const res of review.results) if (res.i >= 0 && res.i < reps.length) verdicts.set(res.i, { correct: res.correct, errors: res.errors });
+
+    let anyWrong = false;
+    const allErrors: string[] = [];
+    reps.forEach((rep, k) => {
+      let v = verdicts.get(k);
+      if (!v) { const lj = localJudge(rep.expected, rep.said); v = { correct: lj.correct, errors: [] }; }
+      if (v.correct) {
+        if (rep.cue) logReview({ kind: "word", ref: `word:${rep.cue}`, text: rep.cue, nativeZh: "", patternId: lid, event: "correct" });
+      } else {
+        anyWrong = true;
+        if (rep.cue) logReview({ kind: "word", ref: `word:${rep.cue}`, text: rep.cue, nativeZh: "", patternId: lid, event: "wrong" });
+        logReview({ kind: "sentence", ref: `sent:${lid}:${rep.expected}`, text: rep.expected, nativeZh: rep.nativeZh ?? "", patternId: lid, event: "wrong" });
+        allErrors.push(...v.errors);
+      }
+    });
+    sessionErrorRef.current = sessionErrorRef.current || anyWrong;
+    if (allErrors.length) logErrors(allErrors, { lessonId: lid });
+    // 延後到此才記 drill gap(整輪全對才升 box)
+    logDrill(selectedId, drillType, pat, sessionErrorRef.current);
+    if (review) setSessionAi(review);
+    else setSessionAiMsg("AI 分析暫時無法使用,已用本地比對評分(對錯仍記錄)。");
   }
 
   function openLesson(id: string) {
@@ -528,6 +568,11 @@ export default function TrainingPage() {
     const box = drillReviewRef.current.get(drillKey(selectedId, type))?.box ?? 0;
     s = s.slice(0, repCountForBox(box));
     sessionErrorRef.current = false;
+    repsRef.current = [];
+    batchDoneRef.current = false;
+    setSessionAi(null);
+    setSessionAiMsg("");
+    setSessionAiLoading(false);
     stepsRef.current = s;
     timesRef.current = [];
     setSteps(s);
@@ -556,6 +601,11 @@ export default function TrainingPage() {
   }
   useEffect(() => () => { clearTimers(); closeMic(); }, []);
   useEffect(() => { initProgress().then(setProgress); }, []);
+  // 進入「完成」頁且本輪開了 AI → 自動對整輪做一次 AI 分析
+  useEffect(() => {
+    if (mode === "complete" && aiOn && !batchDoneRef.current) runSessionReview();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, aiOn]);
   useEffect(() => {
     initContent().then(async () => {
       // Phase 2 選詞情境:使用中詞本 + 單字複習狀態
@@ -813,6 +863,47 @@ export default function TrainingPage() {
             <div className="rounded-xl border border-ink-700 bg-ink-900/40 p-3"><div className="text-2xl font-black text-accent">{fastest ? fastest.toFixed(1) : "—"}s</div><div className="text-xs text-slate-500">最快</div></div>
             <div className="rounded-xl border border-ink-700 bg-ink-900/40 p-3"><div className="text-2xl font-black text-slate-100">{mm}:{ss}</div><div className="text-xs text-slate-500">用時</div></div>
           </div>
+          {/* 整輪 AI 分析(背景模式:練完才評) */}
+          {aiOn && (
+            <div className="mx-auto mt-6 max-w-md text-left">
+              {sessionAiLoading ? (
+                <div className="card p-4 text-center text-sm text-slate-400 animate-pulse">🤖 正在對這 {repsRef.current.length} 發做整體分析…</div>
+              ) : sessionAi ? (
+                <div className="card p-4">
+                  {(() => { const vm = new Map(sessionAi.results.map((r) => [r.i, r])); const reps = repsRef.current; const ok = reps.filter((_, k) => vm.get(k)?.correct).length;
+                    return (
+                      <>
+                        <div className="mb-2 flex items-center gap-2">
+                          <span className="text-sm font-semibold text-slate-200">🤖 整輪分析</span>
+                          <span className="chip ml-auto bg-accent/15 text-[11px] text-accent">答對 {ok}/{reps.length}</span>
+                        </div>
+                        <p className="text-sm text-slate-200">{sessionAi.summary}</p>
+                        {sessionAi.tips.length > 0 && (
+                          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-300">{sessionAi.tips.map((t, i) => <li key={i}>{t}</li>)}</ul>
+                        )}
+                        <details className="mt-3">
+                          <summary className="cursor-pointer text-xs text-slate-500">逐發明細</summary>
+                          <ul className="mt-2 space-y-1.5">
+                            {reps.map((rep, k) => { const v = vm.get(k); const correct = v ? v.correct : true; return (
+                              <li key={k} className="rounded-lg border border-ink-700 bg-ink-900/40 px-2.5 py-1.5 text-sm">
+                                <div className="flex items-center gap-2">
+                                  <span className={correct ? "text-accent" : "text-red-400"}>{correct ? "✓" : "✗"}</span>
+                                  <span className="min-w-0 flex-1 truncate text-slate-200">{rep.expected}</span>
+                                </div>
+                                {!correct && <div className="mt-0.5 pl-5 text-xs text-slate-500">你說:「{rep.said}」{v?.errors?.length ? ` · ${v.errors.join("、")}` : ""}</div>}
+                              </li>
+                            ); })}
+                          </ul>
+                        </details>
+                      </>
+                    ); })()}
+                </div>
+              ) : sessionAiMsg ? (
+                <div className="card p-4 text-sm text-gold">{sessionAiMsg}</div>
+              ) : null}
+            </div>
+          )}
+
           <div className="mx-auto mt-6 flex max-w-sm gap-2">
             <button onClick={() => startSession(drillType, selectedOp, selectedFrame, selectedPerson)} className="btn-ghost flex-1">再練一次</button>
             <button onClick={() => setMode("select")} className="btn-primary flex-1">換個模式</button>
@@ -909,7 +1000,7 @@ export default function TrainingPage() {
             {step?.nativeZh && <div className="text-sm text-slate-500">{step.nativeZh}</div>}
             <div className="text-sm text-slate-400">你的反應：<span className={tierColor[tier(reaction)]}>{reaction.toFixed(1)}s · {tier(reaction)}</span></div>
             {!aiResult && heardText && <div className="mt-1 text-sm text-accent">你說的(即時辨識):「{heardText}」</div>}
-            {scoring && <div className="mt-1 text-sm text-slate-400 animate-pulse">🤖 AI 評分中…</div>}
+            {aiRef.current && <div className="mt-1 text-xs text-slate-500">🤖 背景評分中,整輪結束後一次詳評</div>}
             {aiResult && (
               <div className="mt-2 w-full max-w-md rounded-xl border border-ink-700 bg-ink-900/40 p-3 text-left text-sm">
                 <div className="mb-1 text-xs text-slate-500">你說的：<span className="text-slate-300">“{aiResult.transcript || "(聽不清)"}”</span></div>
