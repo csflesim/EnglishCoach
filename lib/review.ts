@@ -3,7 +3,7 @@
 
 import { hasSupabase, selectEq, upsertReturning, insertRows } from "./supabase";
 
-export type ReviewKind = "word" | "sentence";
+export type ReviewKind = "word" | "sentence" | "drill";
 export type ReviewEvent = "wrong" | "unknown" | "correct" | "seen";
 export type ReviewStatus = "new" | "learning" | "weak" | "known";
 
@@ -22,26 +22,25 @@ export type ReviewItem = {
   next_review: string | null;
   interval_days: number;
   ease: number;
+  box: number;
 };
 
-const DAY = 86400 * 1000;
+// 艾賓豪斯 11 個複習週期(分鐘):5m,30m,12h,1d,2d,4d,7d,15d,1mo,3mo,6mo
+const EB_MIN = [5, 30, 720, 1440, 2880, 5760, 10080, 21600, 43200, 129600, 259200];
 
-// 簡單 SM-2 風格:答對拉長、答錯/不會歸零並降 ease
+// 盒子(box/gap)制:答對 box+1(間隔變長);答錯/不會 box 歸 0
 function schedule(prev: Partial<ReviewItem> | undefined, event: ReviewEvent) {
-  const ease0 = prev?.ease ?? 2.5;
-  const int0 = prev?.interval_days ?? 0;
-  let interval = int0;
-  let ease = ease0;
-  let status: ReviewStatus = (prev?.status as ReviewStatus) ?? "new";
-  if (event === "correct") {
-    interval = int0 <= 0 ? 1 : Math.min(int0 * ease0, 365);
-    status = interval >= 21 ? "known" : "learning";
-  } else if (event === "wrong" || event === "unknown") {
-    interval = 0.04; // ~1 小時後再來
-    ease = Math.max(1.3, ease0 - 0.2);
-    status = "weak";
-  }
-  return { interval_days: interval, ease, status, next_review: new Date(Date.now() + interval * DAY).toISOString() };
+  let box = prev?.box ?? 0;
+  if (event === "correct") box = Math.min(box + 1, EB_MIN.length - 1);
+  else if (event === "wrong" || event === "unknown") box = 0;
+  const mins = EB_MIN[box];
+  const status: ReviewStatus = event === "wrong" || event === "unknown" ? "weak" : box >= 8 ? "known" : "learning";
+  return { box, interval_days: mins / 1440, status, next_review: new Date(Date.now() + mins * 60000).toISOString() };
+}
+
+// drill 發數:首次/gap1=20、gap2=10、gap3=5、gap4+=3
+export function repCountForBox(box: number): number {
+  return box <= 1 ? 20 : box === 2 ? 10 : box === 3 ? 5 : 3;
 }
 
 export async function logReview(args: {
@@ -67,7 +66,7 @@ export async function logReview(args: {
     wrong_count: (existing?.wrong_count ?? 0) + bump,
     last_seen: now,
     interval_days: s.interval_days,
-    ease: s.ease,
+    box: s.box,
     next_review: s.next_review,
   };
   if (args.event === "wrong") patch.last_wrong_at = now;
@@ -100,3 +99,22 @@ export function isDue(it: ReviewItem): boolean {
   if (!it.next_review) return true;
   return new Date(it.next_review).getTime() <= Date.now();
 }
+
+// ── drill(句型操練)複習 ──
+export type DrillReview = { box: number; next_review: string | null };
+const drillRef = (lessonId: string, type: string) => `drill:${lessonId}:${type}`;
+
+// 記錄一次操練結果(整輪有錯→歸零;全對→box+1)
+export async function logDrill(lessonId: string, type: string, text: string, hadError: boolean): Promise<void> {
+  await logReview({ kind: "drill", ref: drillRef(lessonId, type), text, patternId: lessonId, event: hadError ? "wrong" : "correct" });
+}
+
+// 取得所有 drill 的複習狀態 map: ref → {box, next_review}
+export async function getDrillReviewMap(): Promise<Map<string, DrillReview>> {
+  const m = new Map<string, DrillReview>();
+  if (!hasSupabase) return m;
+  const items = await selectEq<ReviewItem>("review_items", "kind", "drill");
+  for (const it of items) m.set(it.ref, { box: it.box ?? 0, next_review: it.next_review });
+  return m;
+}
+export function drillKey(lessonId: string, type: string) { return drillRef(lessonId, type); }

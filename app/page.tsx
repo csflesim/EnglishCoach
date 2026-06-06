@@ -25,7 +25,7 @@ import {
 import { initProgress, markMode, lessonProgress, recommendNextLessonId, type ProgressMap } from "@/lib/progress";
 import { initContent, getActiveWordbook } from "@/lib/content";
 import { transcribe, evaluate, type EvalResult } from "@/lib/ai";
-import { logReview, getWordReviewMap } from "@/lib/review";
+import { logReview, getWordReviewMap, getDrillReviewMap, drillKey, repCountForBox, logDrill, type DrillReview } from "@/lib/review";
 import { logSession } from "@/lib/practice";
 
 type Mode = "home" | "select" | "selectSub" | "selectSubPerson" | "selectTransFrame" | "selectOp" | "running" | "complete";
@@ -91,6 +91,8 @@ export default function TrainingPage() {
   aiRef.current = aiOn;
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const drillReviewRef = useRef<Map<string, DrillReview>>(new Map()); // drill gap 狀態
+  const sessionErrorRef = useRef(false); // 本輪是否有答錯/標不熟
 
   const timeoutsRef = useRef<number[]>([]);
   const startRef = useRef(0);
@@ -343,6 +345,7 @@ export default function TrainingPage() {
   }
   // 寫入複習紀錄(只記答錯 / 標記不熟):句子 + (替換時)單字
   function logRep(cur: Step, event: "wrong" | "unknown") {
+    sessionErrorRef.current = true;
     const lid = lessonRef.current?.id ?? selectedId;
     logReview({ kind: "sentence", ref: `sent:${lid}:${cur.answer}`, text: cur.answer, nativeZh: cur.nativeZh, patternId: lid, event });
     if (cur.type === "Substitution" && cur.cue) logReview({ kind: "word", ref: `word:${cur.cue.toLowerCase()}`, text: cur.cue, nativeZh: "", patternId: lid, event });
@@ -362,6 +365,8 @@ export default function TrainingPage() {
     const ts = timesRef.current;
     const avg = ts.length ? ts.reduce((a, b) => a + b, 0) / ts.length : null;
     logSession({ duration_sec: dur, drill_type: drillType, lesson_id: selectedId, reps: stepsRef.current.length, avg_reaction: avg });
+    // drill gap:整輪全對→box+1(間隔變長);有錯→歸零
+    logDrill(selectedId, drillType, lessonRef.current.patternText, sessionErrorRef.current);
     // 記錄完成的模式 → 推進學習地圖
     const np = markMode(progressRef.current, selectedId, drillType);
     setProgress(np);
@@ -377,7 +382,11 @@ export default function TrainingPage() {
     setSelectedOp(opKey);
     setSelectedFrame(frameKey);
     if (person) setSelectedPerson(person);
-    const s = buildSession(getLesson(selectedId), type, opKey, frameKey, person);
+    let s = buildSession(getLesson(selectedId), type, opKey, frameKey, person);
+    // 依 drill gap 決定發數(首次/gap1=20、gap2=10、gap3=5、gap4+=3)
+    const box = drillReviewRef.current.get(drillKey(selectedId, type))?.box ?? 0;
+    s = s.slice(0, repCountForBox(box));
+    sessionErrorRef.current = false;
     stepsRef.current = s;
     timesRef.current = [];
     setSteps(s);
@@ -409,8 +418,9 @@ export default function TrainingPage() {
     initContent().then(async () => {
       // Phase 2 選詞情境:使用中詞本 + 單字複習狀態
       const wb = getActiveWordbook();
-      const review = await getWordReviewMap();
+      const [review, drills] = await Promise.all([getWordReviewMap(), getDrillReviewMap()]);
       setSelectionContext(wb, review);
+      drillReviewRef.current = drills;
       setContentTick((t) => t + 1);
     });
   }, []);
@@ -418,7 +428,14 @@ export default function TrainingPage() {
   // ─────────── HOME ───────────
   if (mode === "home") {
     const orderedIds = learningPath.flatMap((c) => c.units.filter((u) => u.lessonId).map((u) => u.lessonId!));
-    const todayId = recommendNextLessonId(progress, orderedIds);
+    const nextNewId = recommendNextLessonId(progress, orderedIds);
+    // 推薦:優先「到期複習」的 drill,否則新進度
+    const dueDrills = Array.from(drillReviewRef.current.entries())
+      .filter(([, v]) => v.next_review && new Date(v.next_review).getTime() <= Date.now())
+      .sort((a, b) => (a[1].next_review ?? "").localeCompare(b[1].next_review ?? ""));
+    const recId = dueDrills.length ? dueDrills[0][0].split(":")[1] : nextNewId;
+    const todayId = orderedIds.includes(recId) ? recId : nextNewId;
+    const recDue = dueDrills.length > 0;
     const masteredN = orderedIds.filter((id) => lessonProgress(progress, getLesson(id)).mastered).length;
     return (
       <Shell>
@@ -429,10 +446,10 @@ export default function TrainingPage() {
         </div>
 
         <button onClick={() => openLesson(todayId)} className="block w-full overflow-hidden rounded-2xl border border-accent/40 bg-gradient-to-br from-accent/10 to-ink-900 p-6 text-left transition hover:border-accent/70">
-          <div className="text-xs font-semibold uppercase tracking-wide text-accent">下一步 · Next Up</div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-accent">{recDue ? "推薦 · Recommendation(複習到期)" : "推薦 · Recommendation"}</div>
           <div className="mt-1 text-2xl font-bold text-slate-100">{getLesson(todayId).patternText}</div>
-          <div className="mt-2 text-xs text-slate-500">Unit {getLesson(todayId).unit} · 點選 → 選模式操練</div>
-          <span className="btn-primary mt-4">▶ 繼續學習</span>
+          <div className="mt-2 text-xs text-slate-500">Unit {getLesson(todayId).unit} · {recDue ? "間隔複習到期,建議現在練" : "新進度"} → 點選操練</div>
+          <span className="btn-primary mt-4">▶ {recDue ? "開始複習" : "繼續學習"}</span>
         </button>
 
         <div className="mt-6">
