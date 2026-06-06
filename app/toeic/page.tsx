@@ -4,20 +4,17 @@ import { useEffect, useState } from "react";
 import Shell from "@/components/Shell";
 import { genToeic, type ToeicQuestion } from "@/lib/ai";
 import { getErrorStats, logErrors, initContent } from "@/lib/content";
+import { TOEIC_BANK } from "@/lib/toeicBank";
 
 const LETTERS = ["A", "B", "C", "D"];
 
-// 無 AI 金鑰時的內建題庫(Part 5 範例)
-const FALLBACK: ToeicQuestion[] = [
-  { sentence: "The manager asked the team to ____ the report before the meeting.", options: ["finish", "finishes", "finished", "finishing"], answer: 0, skill: "詞性", explanation: "to 後接原形動詞 finish。" },
-  { sentence: "Sales have increased ____ the new marketing campaign.", options: ["because", "because of", "so", "although"], answer: 1, skill: "連接詞", explanation: "後接名詞片語 the new campaign,用介系詞片語 because of;because 後要接子句。" },
-  { sentence: "All employees ____ required to attend the training session.", options: ["is", "are", "was", "be"], answer: 1, skill: "主謂一致", explanation: "主詞 employees 為複數,用 are。" },
-  { sentence: "The new policy will take effect ____ January 1st.", options: ["in", "at", "on", "by"], answer: 2, skill: "介係詞", explanation: "特定日期用 on。" },
-  { sentence: "Yesterday the company ____ a new product line.", options: ["launch", "launches", "launched", "will launch"], answer: 2, skill: "時態", explanation: "Yesterday 表過去,用過去式 launched。" },
-  { sentence: "This printer is ____ than the old one.", options: ["fast", "faster", "fastest", "more fast"], answer: 1, skill: "比較", explanation: "兩者相比用比較級 faster;than 是線索。" },
-  { sentence: "The candidate ____ resume impressed the interviewer.", options: ["who", "whose", "which", "whom"], answer: 1, skill: "關係子句", explanation: "修飾 candidate 且後接名詞 resume,用所有格關係詞 whose。" },
-  { sentence: "Please submit your application ____ Friday.", options: ["until", "by", "since", "during"], answer: 1, skill: "介係詞", explanation: "在期限之前完成用 by(截止);until 表持續到某時。" },
-];
+// 從內建題庫挑題:優先弱點題型,其餘隨機補滿
+function pickFromBank(weak: string[], n = 6): ToeicQuestion[] {
+  const weakSet = new Set(weak);
+  const weakQs = shuffle(TOEIC_BANK.filter((q) => weakSet.has(q.skill)));
+  const rest = shuffle(TOEIC_BANK.filter((q) => !weakSet.has(q.skill)));
+  return [...weakQs, ...rest].slice(0, n);
+}
 
 type Phase = "intro" | "quiz" | "done";
 
@@ -34,13 +31,21 @@ export default function ToeicPage() {
 
   useEffect(() => { initContent().then(() => getErrorStats().then((s) => setWeak(s.slice(0, 4).map((x) => x.tag)))); }, []);
 
-  async function start() {
+  function begin(bank: ToeicQuestion[]) {
+    setQs(bank); setI(0); setPicked(null); setCorrectN(0); setWrongSkills({}); setPhase("quiz");
+  }
+  // 內建題庫(免費、即時、300 題)
+  function startBank() {
+    setMsg("");
+    begin(pickFromBank(weak, 6));
+  }
+  // AI 針對弱點即時出題(需金鑰)
+  async function startAI() {
     setLoading(true); setMsg("");
     const ai = await genToeic({ count: 6, focus: weak });
     setLoading(false);
-    const bank = ai && ai.length ? ai : shuffle(FALLBACK).slice(0, 6);
-    if (!ai) setMsg("(用內建題庫;設定 OpenAI 金鑰可無限出題、並針對你的弱點)");
-    setQs(bank); setI(0); setPicked(null); setCorrectN(0); setWrongSkills({}); setPhase("quiz");
+    if (ai && ai.length) begin(ai);
+    else { setMsg("AI 出題失敗(可能未設金鑰),改用題庫。"); begin(pickFromBank(weak, 6)); }
   }
 
   function choose(idx: number) {
@@ -71,8 +76,9 @@ export default function ToeicPage() {
           <div className="mt-2 flex flex-wrap gap-2">
             {weak.length ? weak.map((w) => <span key={w} className="chip bg-red-500/15 text-[11px] text-red-400">{w}</span>) : <span className="text-xs text-slate-600">(還沒有弱點資料 → 先一般出題)</span>}
           </div>
-          <button onClick={start} disabled={loading} className="btn-primary mt-5 w-full py-3">{loading ? "出題中…" : "開始作答(6 題)"}</button>
-          <p className="mt-3 text-center text-[11px] text-slate-600">答錯的題型會記進「分析 → 常錯結構」,下次更針對。</p>
+          <button onClick={startBank} className="btn-primary mt-5 w-full py-3">開始作答(題庫 6 題)</button>
+          <button onClick={startAI} disabled={loading} className="btn-ghost mt-2 w-full py-2.5 text-sm">{loading ? "AI 出題中…" : "🤖 AI 針對弱點即時出題(需金鑰)"}</button>
+          <p className="mt-3 text-center text-[11px] text-slate-600">內建題庫 {TOEIC_BANK.length} 題(免費、即時);答錯的題型會記進「分析 → 常錯結構」,下次更針對。</p>
         </div>
       </Shell>
     );
@@ -103,7 +109,7 @@ export default function ToeicPage() {
           )}
           <div className="mx-auto mt-6 flex max-w-sm gap-2">
             <button onClick={() => setPhase("intro")} className="btn-ghost flex-1">回首頁</button>
-            <button onClick={start} className="btn-primary flex-1">再來一組</button>
+            <button onClick={startBank} className="btn-primary flex-1">再來一組</button>
           </div>
         </div>
       </Shell>

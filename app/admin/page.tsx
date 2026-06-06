@@ -344,6 +344,7 @@ function AccountsAdmin() {
   const [password, setPassword] = useState("");
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
+  const [showPw, setShowPw] = useState(false);
   const me = getCurrentUser();
 
   function load() { selectAll<AdminUser>("users", "id,username,created_at").then((r) => { setRows(r.sort((a, b) => a.id - b.id)); setLoaded(true); }); }
@@ -379,7 +380,10 @@ function AccountsAdmin() {
             </div>
             <div className="flex-1">
               <label className="mb-1 block text-[11px] text-slate-500">密碼</label>
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full rounded-lg border border-ink-700 bg-ink-900 px-2.5 py-2 text-sm text-slate-100 outline-none focus:border-accent" placeholder="••••" />
+              <div className="relative">
+                <input type={showPw ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} className="w-full rounded-lg border border-ink-700 bg-ink-900 px-2.5 py-2 pr-10 text-sm text-slate-100 outline-none focus:border-accent" placeholder="••••" />
+                <button type="button" onClick={() => setShowPw((v) => !v)} aria-label={showPw ? "隱藏密碼" : "顯示密碼"} className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-slate-500 hover:text-slate-200">{showPw ? "🙈" : "👁"}</button>
+              </div>
             </div>
             <button onClick={create} disabled={busy || !username.trim() || !password} className="btn-primary px-4 py-2 text-sm">{busy ? "建立中…" : "建立帳號"}</button>
           </div>

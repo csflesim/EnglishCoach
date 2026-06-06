@@ -12,6 +12,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [showPw, setShowPw] = useState(false);
 
   useEffect(() => { if (getCurrentUser()) router.replace("/"); }, [router]);
 
@@ -51,7 +52,10 @@ export default function LoginPage() {
             </div>
             <div>
               <label className="mb-1 block text-xs text-slate-500">密碼</label>
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full rounded-lg border border-ink-700 bg-ink-900 px-3 py-2.5 text-slate-100 outline-none focus:border-accent" placeholder="••••••" />
+              <div className="relative">
+                <input type={showPw ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} className="w-full rounded-lg border border-ink-700 bg-ink-900 px-3 py-2.5 pr-11 text-slate-100 outline-none focus:border-accent" placeholder="••••••" />
+                <button type="button" onClick={() => setShowPw((v) => !v)} aria-label={showPw ? "隱藏密碼" : "顯示密碼"} className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-slate-500 hover:text-slate-200">{showPw ? "🙈" : "👁"}</button>
+              </div>
             </div>
             {err && <p className="text-sm text-red-400">{err}</p>}
             <button type="submit" disabled={busy} className="btn-primary w-full py-3">{busy ? "處理中…" : mode === "login" ? "登入" : "建立帳號"}</button>
