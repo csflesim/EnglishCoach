@@ -1,7 +1,7 @@
 // 複習引擎(SRS)。單詞 + 句子共用 review_items / review_events。
 // 需要 Supabase;無金鑰則為 no-op(複習功能需 DB)。
 
-import { hasSupabase, selectEq, upsertReturning, insertRows } from "./supabase";
+import { hasSupabase, selectEq, upsertReturning, insertRows, updateEq } from "./supabase";
 
 export type ReviewKind = "word" | "sentence" | "drill";
 export type ReviewEvent = "wrong" | "unknown" | "correct" | "seen";
@@ -74,6 +74,8 @@ export async function logReview(args: {
   const rows = await upsertReturning<{ id: number }>("review_items", [patch], "ref", "id");
   const id = rows[0]?.id;
   if (id != null) await insertRows("review_events", [{ item_id: id, event: args.event }]);
+  // 鏡像 box 到 vocabulary(方便直接查;ref 即原字)
+  if (args.kind === "word") updateEq("vocabulary", "word", args.ref.replace(/^word:/, ""), { box: s.box });
 }
 
 export async function getReviewItems(kind: ReviewKind): Promise<ReviewItem[]> {

@@ -121,7 +121,7 @@ export async function wordbookCount(name: string): Promise<number> {
   if (!hasSupabase) return 0;
   return name === "ALL" ? countRows("vocabulary") : countContains("vocabulary", "wordbooks", name);
 }
-export type VocabView = { word: string; native_zh: string; categories: string[]; pos: string | null; difficulty: number | null };
+export type VocabView = { word: string; native_zh: string; categories: string[]; pos: string | null; difficulty: number | null; box: number | null };
 export async function getBookWords(name: string, offset = 0, limit = 60, search = ""): Promise<VocabView[]> {
   if (!hasSupabase) return [];
   return pageVocabByBook<VocabView>(name, offset, limit, search.trim());

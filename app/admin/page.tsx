@@ -27,7 +27,6 @@ import {
   seedToDb,
   type VocabView,
 } from "@/lib/content";
-import { getWordBoxMap } from "@/lib/review";
 import { hasSupabase } from "@/lib/supabase";
 
 type Tab = "patterns" | "wordbook";
@@ -161,11 +160,10 @@ function WordbookAdmin({ onChange }: { onChange: () => void }) {
   const [words, setWords] = useState<VocabView[]>([]);
   const [search, setSearch] = useState("");
   const [more, setMore] = useState(false);
-  const [boxMap, setBoxMap] = useState<Map<string, number>>(new Map());
 
   const book = selected && names.includes(selected) ? selected : names[0] ?? null;
 
-  useEffect(() => { setActive(getActiveWordbook()); getWordBoxMap().then(setBoxMap); }, []);
+  useEffect(() => { setActive(getActiveWordbook()); }, []);
   useEffect(() => {
     let on = true;
     if (book) wordbookCount(book).then((c) => on && setCount(c));
@@ -264,7 +262,7 @@ function WordbookAdmin({ onChange }: { onChange: () => void }) {
                       <span className="ml-auto flex shrink-0 items-center gap-1 text-[10px] text-slate-500">
                         <span title="難易分數" className="text-slate-400">{w.difficulty ?? "—"}</span>
                         <span className="text-slate-700">|</span>
-                        <span title="記憶 box" className="text-gold">B{boxMap.get(w.word.toLowerCase()) ?? 0}</span>
+                        <span title="記憶 box" className="text-gold">B{w.box ?? 0}</span>
                         <span className="text-slate-700">|</span>
                         <span title="分類" className="chip bg-ink-700 text-[10px] text-slate-400">{w.categories?.join("/") || "—"}</span>
                       </span>

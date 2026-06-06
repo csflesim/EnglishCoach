@@ -66,7 +66,7 @@ export function selectForFrame(f: SubFrame, n = SUBSTITUTION_TARGET): VocabWord[
   if (activeWordbook && activeWordbook !== "ALL") pool = pool.filter((w) => w.wordbooks?.includes(activeWordbook!));
   if (pool.length <= n) return pool;
   const now = Date.now();
-  const info = (w: VocabWord) => wordReviewMap.get(w.word.toLowerCase());
+  const info = (w: VocabWord) => wordReviewMap.get(w.word);
   const overdue = (w: VocabWord) => { const r = info(w); return r?.next_review ? new Date(r.next_review).getTime() <= now : true; };
   const wrong = pool.filter((w) => { const r = info(w); return r && (r.status === "weak" || r.wrong_count > 0); });
   const reviewDue = pool.filter((w) => { const r = info(w); return r && r.wrong_count === 0 && r.status !== "weak" && overdue(w); });

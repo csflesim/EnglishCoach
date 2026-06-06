@@ -86,7 +86,7 @@ export async function pageVocabByBook<T = Record<string, unknown>>(name: string,
   const c = sb();
   if (!c) return [];
   try {
-    let q = c.from("vocabulary").select("word,native_zh,categories,pos,difficulty").order("word").range(offset, offset + limit - 1);
+    let q = c.from("vocabulary").select("word,native_zh,categories,pos,difficulty,box").order("word").range(offset, offset + limit - 1);
     if (name !== "ALL") q = q.contains("wordbooks", [name]); // ALL = 全部單字,不篩
     if (search) q = q.ilike("word", `%${search}%`);
     const { data } = await q;
@@ -105,6 +105,12 @@ export async function countContains(table: string, col: string, val: string): Pr
   } catch {
     return 0;
   }
+}
+
+export async function updateEq(table: string, col: string, val: string, patch: Record<string, unknown>): Promise<void> {
+  const c = sb();
+  if (!c) return;
+  try { await c.from(table).update(patch).eq(col, val); } catch { /* ignore */ }
 }
 
 export async function insertRows(table: string, rows: Record<string, unknown>[]): Promise<void> {

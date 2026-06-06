@@ -370,7 +370,7 @@ export default function TrainingPage() {
     if (!cur.cue) return;
     if (event !== "correct") sessionErrorRef.current = true;
     const lid = lessonRef.current?.id ?? selectedId;
-    logReview({ kind: "word", ref: `word:${cur.cue.toLowerCase()}`, text: cur.cue, nativeZh: "", patternId: lid, event });
+    logReview({ kind: "word", ref: `word:${cur.cue}`, text: cur.cue, nativeZh: "", patternId: lid, event });
   }
   // AI 判定整句錯 → 句子 + 單字都記
   function logRep(cur: Step, event: "wrong" | "unknown") { logSentence(cur, event); logWord(cur, event); }
