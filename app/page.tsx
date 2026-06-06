@@ -66,6 +66,7 @@ const tierColor: Record<string, string> = {
 
 export default function TrainingPage() {
   const [mode, setMode] = useState<Mode>("home");
+  const [showSettings, setShowSettings] = useState(false);
   const [selectedId, setSelectedId] = useState(learner.todayLessonId);
   const [drillType, setDrillType] = useState<DrillType>("Substitution");
   const [selectedOp, setSelectedOp] = useState<string | undefined>(undefined);
@@ -642,6 +643,60 @@ export default function TrainingPage() {
     });
   }, []);
 
+  // ─────────── 設定面板(各開關 + 功能說明)───────────
+  const SETTINGS: { icon: string; label: string; desc: string; value: boolean; set: (v: boolean) => void; warn?: string }[] = [
+    { icon: "🎤", label: "麥克風偵測", value: useMic, set: setUseMic,
+      desc: "用麥克風自動聽你開口、計算反應時間,說完自動判斷。關閉則改用手動按鈕「我開始說了/說完了」。" },
+    { icon: "🎙", label: "即時辨識(免費)", value: webSpeechOn, set: setWebSpeechOn,
+      desc: "用瀏覽器內建語音辨識,邊說邊把你說的字顯示出來。只有支援的瀏覽器有(如電腦版 Chrome)。", warn: webSpeechSupported ? undefined : "此瀏覽器不支援,會自動改用麥克風偵測。" },
+    { icon: "🔊", label: "語音朗讀", value: audioOn, set: setAudioOn,
+      desc: "自動唸出提示與正解。手機請先點一下畫面任何地方解鎖聲音,之後才能自動播。" },
+    { icon: "🔁", label: "Echo 跟讀循環", value: echoLoop, set: setEchoLoop,
+      desc: "正解之後加跑「英文 → 中文 → 英文」,中間留時間讓你跟著覆述一遍,加深肌肉記憶。" },
+    { icon: "🌐", label: "顯示翻譯", value: showTranslation, set: setShowTranslation,
+      desc: "出題時同時顯示中文。預設關閉,逼自己直接用英文反應(FSI 訓練建議關)。" },
+    { icon: "✅", label: "本地比對(免費)", value: localMatchOn, set: setLocalMatchOn,
+      desc: "不花錢,用程式即時比對你說的與正解,立刻顯示對/錯。縮寫視為相同(I'm = I am)。AI 評分關閉時用它判分。" },
+    { icon: "🤖", label: "AI 評分", value: aiOn, set: setAiOn, warn: "需 OpenAI 金鑰,會產生費用。",
+      desc: "練習時不卡頓(背景收集),整輪結束後一次送 AI:給每發對錯、錯誤類別(時態/單詞/介係詞…)與弱點總結,並寫入複習與「學習分析」。" },
+    { icon: "🧹", label: "AI 選詞過濾", value: aiFilterOn, set: setAiFilterOn, warn: "需 OpenAI 金鑰,會產生費用。",
+      desc: "開始前用 AI 自動排除文法不通的「單字 × 句框」組合(例如不該搭的詞),判斷過的就快取、之後不再重判。" },
+  ];
+  const settingsOverlay = showSettings ? (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center" onClick={() => setShowSettings(false)}>
+      <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-t-2xl border border-ink-700 bg-ink-900 p-5 sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-1 flex items-center gap-2">
+          <h2 className="text-lg font-bold text-slate-100">⚙ 設定</h2>
+          <button onClick={() => setShowSettings(false)} className="ml-auto text-slate-500 hover:text-slate-200">✕</button>
+        </div>
+        <p className="mb-4 text-xs text-slate-500">這些設定會自動記住,下次開啟沿用。</p>
+        <div className="space-y-2">
+          {SETTINGS.map((s) => (
+            <label key={s.label} className="flex cursor-pointer items-start gap-3 rounded-xl border border-ink-700 bg-ink-900/40 p-3 transition hover:border-accent/40">
+              <span className="mt-0.5 text-xl">{s.icon}</span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-slate-100">{s.label}</span>
+                  {s.warn && <span className="chip bg-gold/15 text-[10px] text-gold">{s.warn}</span>}
+                </div>
+                <p className="mt-0.5 text-xs leading-relaxed text-slate-500">{s.desc}</p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={s.value}
+                onClick={() => s.set(!s.value)}
+                className={`relative mt-1 h-6 w-11 shrink-0 rounded-full transition ${s.value ? "bg-accent" : "bg-ink-700"}`}
+              >
+                <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${s.value ? "left-[22px]" : "left-0.5"}`} />
+              </button>
+            </label>
+          ))}
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   // ─────────── HOME ───────────
   if (mode === "home") {
     const orderedIds = learningPath.flatMap((c) => c.units.filter((u) => u.lessonId).map((u) => u.lessonId!));
@@ -672,14 +727,7 @@ export default function TrainingPage() {
         <div className="mt-6">
           <div className="mb-2 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-slate-300">學習路徑 · FSI 30 單元</h2>
-            <div className="flex items-center gap-3 text-xs text-slate-400">
-              <label className="flex items-center gap-1.5"><input type="checkbox" checked={useMic} onChange={(e) => setUseMic(e.target.checked)} className="h-3.5 w-3.5 accent-[#39d0a3]" />🎤</label>
-              <label className="flex items-center gap-1.5"><input type="checkbox" checked={audioOn} onChange={(e) => setAudioOn(e.target.checked)} className="h-3.5 w-3.5 accent-[#39d0a3]" />🔊</label>
-              <label className="flex items-center gap-1.5" title="正解後加跑 英→母語→英"><input type="checkbox" checked={echoLoop} onChange={(e) => setEchoLoop(e.target.checked)} className="h-3.5 w-3.5 accent-[#39d0a3]" />🔁</label>
-              <label className="flex items-center gap-1.5" title="用 AI 聽你說、評分糾錯(需設定 OpenAI 金鑰、會產生費用)"><input type="checkbox" checked={aiOn} onChange={(e) => setAiOn(e.target.checked)} className="h-3.5 w-3.5 accent-[#39d0a3]" />🤖</label>
-              <label className="flex items-center gap-1.5" title="選詞時 AI 自動過濾不通組合(判過不重判;需金鑰)"><input type="checkbox" checked={aiFilterOn} onChange={(e) => setAiFilterOn(e.target.checked)} className="h-3.5 w-3.5 accent-[#39d0a3]" />🧹</label>
-              <label className="flex items-center gap-1.5" title="本地比對判對錯(免費;AI 關時生效;縮寫等價)"><input type="checkbox" checked={localMatchOn} onChange={(e) => setLocalMatchOn(e.target.checked)} className="h-3.5 w-3.5 accent-[#39d0a3]" />✅</label>
-            </div>
+            <button onClick={() => setShowSettings(true)} className="btn-ghost px-3 py-1.5 text-xs">⚙ 設定</button>
           </div>
           <div className="space-y-4">
             {learningPath.map((c) => (
@@ -713,6 +761,7 @@ export default function TrainingPage() {
             ))}
           </div>
         </div>
+        {settingsOverlay}
       </Shell>
     );
   }
@@ -932,6 +981,7 @@ export default function TrainingPage() {
             <button onClick={() => setMode("select")} className="btn-primary flex-1">換個模式</button>
           </div>
         </div>
+        {settingsOverlay}
       </Shell>
     );
   }
@@ -1041,17 +1091,14 @@ export default function TrainingPage() {
 
       <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
         <button onClick={togglePause} className="btn-ghost">{paused ? "▶ 繼續" : "⏸ 暫停"}</button>
-        <button onClick={() => setAudioOn((v) => !v)} className="btn-ghost">{audioOn ? "🔊 語音開" : "🔇 語音關"}</button>
-        <button onClick={() => setShowTranslation((v) => !v)} className="btn-ghost">{showTranslation ? "🌐 翻譯開" : "🌐 翻譯關"}</button>
-        <button onClick={() => setWebSpeechOn((v) => !v)} className="btn-ghost">{webSpeechOn ? "🎙 即時辨識開" : "🎙 即時辨識關"}</button>
-        <button onClick={() => setLocalMatchOn((v) => !v)} className="btn-ghost">{localMatchOn ? "✅ 本地比對開" : "✅ 本地比對關"}</button>
         <button onClick={markWordUnknown} className="btn-ghost text-red-400">✗ 單詞不熟</button>
         <button onClick={markSentenceUnknown} className="btn-ghost text-red-400">✗ 句子不熟</button>
-        <button onClick={() => setAiFilterOn((v) => !v)} className="btn-ghost">{aiFilterOn ? "🤖 AI 過濾開" : "🤖 AI 過濾關"}</button>
+        <button onClick={() => setShowSettings(true)} className="btn-ghost">⚙ 設定</button>
       </div>
       {markedMsg && <p className="mt-2 text-center text-xs text-accent">{markedMsg}</p>}
       {micError && <p className="mt-3 text-center text-xs text-gold">麥克風無法使用，已切換為手動模式。</p>}
       <p className="mt-3 text-center text-xs text-slate-600">3 秒只是反應速度參考線，不是答案倒數。你開口後，說完才會出正解。</p>
+      {settingsOverlay}
     </Shell>
   );
 }
