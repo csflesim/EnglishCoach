@@ -699,7 +699,8 @@ export function buildSession(lesson: PatternLesson, type: DrillType, key?: strin
           // 固定主詞(subj)優先;否則指定人稱→全用;再否則輪流
           const p: PKey = f.subj ?? (person && person !== "all" ? person : PERSON_ORDER[i % PERSON_ORDER.length]);
           const r = renderSentence(f, p, w.word, w.nativeZh, f.op ?? "present");
-          steps.push({ type, cue: w.word, answer: r.en, nativeZh: r.native, groupKey: f.frame, groupTitle: frameDisplay(f) });
+          const label = renderSentence(f, p, "___", "___", f.op ?? "present").en; // 該人稱的句型(保留 ___)
+          steps.push({ type, cue: w.word, answer: r.en, nativeZh: r.native, groupKey: f.frame, groupTitle: label });
         } else {
           steps.push({ type, cue: w.word, answer: f.frame.replace("___", w.word), nativeZh: f.frameZh.replace("___", w.nativeZh), groupKey: f.frame, groupTitle: f.frame });
         }
