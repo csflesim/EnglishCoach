@@ -355,17 +355,23 @@ export default function TrainingPage() {
       }, repeatMs);
     });
   }
-  // 寫入複習紀錄(只記答錯 / 標記不熟):句子 + (替換時)單字
-  function logRep(cur: Step, event: "wrong" | "unknown") {
+  // 寫入複習紀錄(答錯 / 標記不熟):句子 / 單字 可分開
+  function logSentence(cur: Step, event: "wrong" | "unknown") {
     sessionErrorRef.current = true;
     const lid = lessonRef.current?.id ?? selectedId;
     logReview({ kind: "sentence", ref: `sent:${lid}:${cur.answer}`, text: cur.answer, nativeZh: cur.nativeZh, patternId: lid, event });
-    if (cur.type === "Substitution" && cur.cue) logReview({ kind: "word", ref: `word:${cur.cue.toLowerCase()}`, text: cur.cue, nativeZh: "", patternId: lid, event });
   }
-  function markCurrentUnknown() {
-    const cur = stepsRef.current[idxRef.current];
-    if (cur) { logRep(cur, "unknown"); setMarkedMsg("已加入複習"); schedule(() => setMarkedMsg(""), 1500); }
+  function logWord(cur: Step, event: "wrong" | "unknown") {
+    if (!cur.cue) return;
+    sessionErrorRef.current = true;
+    const lid = lessonRef.current?.id ?? selectedId;
+    logReview({ kind: "word", ref: `word:${cur.cue.toLowerCase()}`, text: cur.cue, nativeZh: "", patternId: lid, event });
   }
+  // AI 判定整句錯 → 句子 + 單字都記
+  function logRep(cur: Step, event: "wrong" | "unknown") { logSentence(cur, event); logWord(cur, event); }
+  function flash(msg: string) { setMarkedMsg(msg); schedule(() => setMarkedMsg(""), 1500); }
+  function markWordUnknown() { const cur = stepsRef.current[idxRef.current]; if (cur) { logWord(cur, "unknown"); flash("單詞已加入複習"); } }
+  function markSentenceUnknown() { const cur = stepsRef.current[idxRef.current]; if (cur) { logSentence(cur, "unknown"); flash("句子已加入複習"); } }
 
   function finish() {
     clearTimers();
@@ -784,10 +790,11 @@ export default function TrainingPage() {
         )}
       </div>
 
-      <div className="mt-4 flex items-center justify-center gap-2">
+      <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
         <button onClick={togglePause} className="btn-ghost">{paused ? "▶ 繼續" : "⏸ 暫停"}</button>
         <button onClick={() => setAudioOn((v) => !v)} className="btn-ghost">{audioOn ? "🔊 語音開" : "🔇 語音關"}</button>
-        <button onClick={markCurrentUnknown} className="btn-ghost text-red-400">✗ 不熟</button>
+        <button onClick={markWordUnknown} className="btn-ghost text-red-400">✗ 單詞不熟</button>
+        <button onClick={markSentenceUnknown} className="btn-ghost text-red-400">✗ 句子不熟</button>
       </div>
       {markedMsg && <p className="mt-2 text-center text-xs text-accent">{markedMsg}</p>}
       {micError && <p className="mt-3 text-center text-xs text-gold">麥克風無法使用，已切換為手動模式。</p>}
