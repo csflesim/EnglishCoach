@@ -41,6 +41,21 @@ export async function sessionReview(p: {
   }
 }
 
+export type ToeicQuestion = { sentence: string; options: string[]; answer: number; skill: string; explanation: string };
+// 多益閱讀 Part 5 出題(可帶弱點 focus)。失敗回 null → 前端用內建題庫。
+export async function genToeic(opts: { count?: number; focus?: string[]; level?: string }): Promise<ToeicQuestion[] | null> {
+  try {
+    const r = await fetch("/api/toeic", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(opts) });
+    const j = await r.json();
+    if (j.error || !Array.isArray(j.questions)) return null;
+    return (j.questions as ToeicQuestion[])
+      .filter((q) => q && typeof q.sentence === "string" && Array.isArray(q.options) && q.options.length === 4 && typeof q.answer === "number")
+      .map((q) => ({ sentence: q.sentence, options: q.options, answer: Math.max(0, Math.min(3, q.answer)), skill: q.skill || "文法", explanation: q.explanation || "" }));
+  } catch {
+    return null;
+  }
+}
+
 export type LearnAnalysis = { summary: string; tips: string[] };
 export async function analyzeLearning(data: unknown): Promise<LearnAnalysis | null> {
   try {
