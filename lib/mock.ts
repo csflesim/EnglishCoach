@@ -635,37 +635,43 @@ function renderSentence(f: SubFrame, p: PKey, wordEn: string, wordZh: string, op
   const { kind, base, pre, tail } = frameParts(f, wordEn);
   const P = pre; // 前置副詞(可空)
   let en = "";
+  // op 各自獨立:present / question(現在疑問)/ past / future / negative(現在否定)
   if (kind === "be") {
     const pres = BE[p];
     const past = p === "you" || p === "we" || p === "they" ? "were" : "was";
-    if (op === "present") en = Q ? `${cap(pres)} ${subjLow}${tail}` : `${subjCap} ${pres}${tail}`;
-    else if (op === "past") en = Q ? `${cap(past)} ${subjLow}${tail}` : `${subjCap} ${past}${tail}`;
-    else if (op === "future") en = Q ? `Will ${subjLow} be${tail}` : `${subjCap} will be${tail}`;
-    else en = `${subjCap} ${pres} not${tail}`;
+    if (op === "question") en = `${cap(pres)} ${subjLow}${tail}`;
+    else if (op === "past") en = `${subjCap} ${past}${tail}`;
+    else if (op === "future") en = `${subjCap} will be${tail}`;
+    else if (op === "negative") en = `${subjCap} ${pres} not${tail}`;
+    else en = `${subjCap} ${pres}${tail}`;
   } else if (kind === "passive") {
     const pp = pastForm(base);
     const pres = BE[p];
     const past = p === "you" || p === "we" || p === "they" ? "were" : "was";
-    if (op === "present") en = Q ? `${cap(pres)} ${subjLow} ${pp}${tail}` : `${subjCap} ${pres} ${pp}${tail}`;
-    else if (op === "past") en = Q ? `${cap(past)} ${subjLow} ${pp}${tail}` : `${subjCap} ${past} ${pp}${tail}`;
-    else if (op === "future") en = Q ? `Will ${subjLow} be ${pp}${tail}` : `${subjCap} will be ${pp}${tail}`;
-    else en = `${subjCap} ${pres} not ${pp}${tail}`;
+    if (op === "question") en = `${cap(pres)} ${subjLow} ${pp}${tail}`;
+    else if (op === "past") en = `${subjCap} ${past} ${pp}${tail}`;
+    else if (op === "future") en = `${subjCap} will be ${pp}${tail}`;
+    else if (op === "negative") en = `${subjCap} ${pres} not ${pp}${tail}`;
+    else en = `${subjCap} ${pres} ${pp}${tail}`;
   } else if (kind === "perfect") {
     const pp = pastForm(base);
     const hv = is3 ? "has" : "have";
-    if (op === "present") en = Q ? `${cap(hv)} ${subjLow} ${pp}${tail}` : `${subjCap} ${hv} ${pp}${tail}`;
-    else if (op === "past") en = Q ? `Had ${subjLow} ${pp}${tail}` : `${subjCap} had ${pp}${tail}`;
-    else if (op === "future") en = Q ? `Will ${subjLow} have ${pp}${tail}` : `${subjCap} will have ${pp}${tail}`;
-    else en = `${subjCap} ${is3 ? "hasn't" : "haven't"} ${pp}${tail}`;
+    if (op === "question") en = `${cap(hv)} ${subjLow} ${pp}${tail}`;
+    else if (op === "past") en = `${subjCap} had ${pp}${tail}`;
+    else if (op === "future") en = `${subjCap} will have ${pp}${tail}`;
+    else if (op === "negative") en = `${subjCap} ${is3 ? "hasn't" : "haven't"} ${pp}${tail}`;
+    else en = `${subjCap} ${hv} ${pp}${tail}`;
   } else if (kind === "modal") {
-    if (op === "past") { const mp = MODAL_PAST[base] ?? base; en = Q ? `${cap(mp)} ${subjLow}${tail}` : `${subjCap} ${mp}${tail}`; }
+    if (op === "question") en = `${cap(base)} ${subjLow}${tail}`;
+    else if (op === "past") en = `${subjCap} ${MODAL_PAST[base] ?? base}${tail}`;
     else if (op === "negative") en = `${subjCap} ${MODAL_NEG[base] ?? base + " not"}${tail}`;
-    else en = Q ? `${cap(base)} ${subjLow}${tail}` : `${subjCap} ${base}${tail}`;
+    else en = `${subjCap} ${base}${tail}`; // present / future
   } else {
-    if (op === "present") en = Q ? `${is3 ? "Does" : "Do"} ${subjLow} ${P}${base}${tail}` : `${subjCap} ${P}${is3 ? third(base) : base}${tail}`;
-    else if (op === "past") en = Q ? `Did ${subjLow} ${P}${base}${tail}` : `${subjCap} ${P}${pastForm(base)}${tail}`;
-    else if (op === "future") en = Q ? `Will ${subjLow} ${P}${base}${tail}` : `${subjCap} ${P}will ${base}${tail}`;
-    else en = `${subjCap} ${P}${is3 ? "doesn't" : "don't"} ${base}${tail}`;
+    if (op === "question") en = `${is3 ? "Does" : "Do"} ${subjLow} ${P}${base}${tail}`;
+    else if (op === "past") en = `${subjCap} ${P}${pastForm(base)}${tail}`;
+    else if (op === "future") en = `${subjCap} ${P}will ${base}${tail}`;
+    else if (op === "negative") en = `${subjCap} ${P}${is3 ? "doesn't" : "don't"} ${base}${tail}`;
+    else en = `${subjCap} ${P}${is3 ? third(base) : base}${tail}`;
   }
   if (Q) en = en.replace(/\.$/, "?");
   let native = f.frameZh.replace("{Sz}", s.zh).replace("___", wordZh);

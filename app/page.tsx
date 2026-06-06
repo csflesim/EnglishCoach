@@ -677,7 +677,7 @@ export default function TrainingPage() {
   }
 
   // ─────────── RUNNING ───────────
-  const topPattern = drillType === "Substitution" ? step?.groupKey ?? lesson.patternText : lesson.patternText;
+  const topPattern = drillType === "Substitution" ? step?.groupTitle ?? lesson.patternText : lesson.patternText;
   return (
     <Shell>
       <div className="mb-3 flex items-center justify-between">
