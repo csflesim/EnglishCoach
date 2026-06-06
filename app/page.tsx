@@ -391,15 +391,14 @@ export default function TrainingPage() {
       schedule(() => {
         const said = liveTranscriptRef.current.trim();
         setHeardText(said);
-        // 本地比對:即時視覺回饋(免費、不卡)。AI 模式下不在此記分,留給整輪 AI 分析。
-        if (localMatchRef.current && said) {
-          const r = localJudge(cur.answer, said);
-          setAiResult({ correct: r.correct, accuracy: r.accuracy, grammar: r.accuracy, fluency: 0, feedback: aiRef.current ? (r.correct ? "✓ 與正解相符(AI 將於結束後詳評)" : "與正解不同(AI 將於結束後詳評)") : (r.correct ? "✓ 與正解相符" : "與正解不同,再試一次"), errors: [], transcript: said });
-          if (!aiRef.current && !r.correct) { logRep(cur, "wrong"); repWordMarkedRef.current = true; }
-        }
         if (aiRef.current && said) {
-          // 背景模式:只收集,不等 AI;整輪結束後一次評分
+          // 背景模式:不顯示對錯,只收集;唸完正解直接下一發,整輪結束後一次詳評
           repsRef.current.push({ i: idxRef.current, cue: cur.cue, expected: cur.answer, said, type: cur.type, pattern: pat, nativeZh: cur.nativeZh });
+        } else if (localMatchRef.current && said) {
+          // 純本地比對(AI 關):即時顯示對錯
+          const r = localJudge(cur.answer, said);
+          setAiResult({ correct: r.correct, accuracy: r.accuracy, grammar: r.accuracy, fluency: 0, feedback: r.correct ? "✓ 與正解相符" : "與正解不同,再試一次", errors: [], transcript: said });
+          if (!r.correct) { logRep(cur, "wrong"); repWordMarkedRef.current = true; }
         }
         revealAndContinue(cur);
       }, 350);
