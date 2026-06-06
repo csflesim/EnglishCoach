@@ -9,6 +9,7 @@ import {
   buildSession,
   framesOf,
   frameDisplay,
+  vocabByCategory,
   availableModes,
   subFrameCount,
   transformFrames,
@@ -23,8 +24,8 @@ import {
   type PKey,
 } from "@/lib/mock";
 import { initProgress, markMode, lessonProgress, recommendNextLessonId, type ProgressMap } from "@/lib/progress";
-import { initContent, getActiveWordbook } from "@/lib/content";
-import { transcribe, evaluate, type EvalResult } from "@/lib/ai";
+import { initContent, getActiveWordbook, getBadCombos, addBadCombos } from "@/lib/content";
+import { transcribe, evaluate, checkFrame, type EvalResult } from "@/lib/ai";
 import { logReview, getWordReviewMap, getDrillReviewMap, drillKey, repCountForBox, logDrill, type DrillReview } from "@/lib/review";
 import { logSession, bumpWeaknessTag } from "@/lib/practice";
 
@@ -103,6 +104,7 @@ export default function TrainingPage() {
   const drillReviewRef = useRef<Map<string, DrillReview>>(new Map()); // drill gap 狀態
   const sessionErrorRef = useRef(false); // 本輪是否有答錯/標不熟
   const repWordMarkedRef = useRef(false); // 本發單字是否已標(不熟/錯)→ 不再記「答對」
+  const badCombosRef = useRef<Set<string>>(new Set()); // 不通的 句框|單字 組合
 
   const timeoutsRef = useRef<number[]>([]);
   const startRef = useRef(0);
@@ -439,6 +441,31 @@ export default function TrainingPage() {
   function flash(msg: string) { setMarkedMsg(msg); schedule(() => setMarkedMsg(""), 1500); }
   function markWordUnknown() { const cur = stepsRef.current[idxRef.current]; if (cur) { repWordMarkedRef.current = true; logWord(cur, "unknown"); flash("單詞已加入複習"); } }
   function markSentenceUnknown() { const cur = stepsRef.current[idxRef.current]; if (cur) { logSentence(cur, "unknown"); flash("句子已加入複習"); } }
+  // 這個「句框×單字」不通 → 記錄封鎖名單,並跳過
+  function markBadCombo() {
+    const cur = stepsRef.current[idxRef.current];
+    if (!cur?.groupKey || !cur.cue) return;
+    badCombosRef.current.add(`${cur.groupKey}|${cur.cue}`);
+    addBadCombos(cur.groupKey, [cur.cue], "user");
+    flash("已排除此組合,之後不再出現");
+    clearTimers(); try { window.speechSynthesis?.cancel(); } catch {}
+    stopWebSpeech();
+    runStep(idxRef.current + 1);
+  }
+  // AI 清理目前句框:批次判斷哪些字填進去不通 → 記錄封鎖
+  async function aiCleanFrame() {
+    const cur = stepsRef.current[idxRef.current];
+    const f = cur?.groupKey ? framesOf(lessonRef.current).find((x) => x.frame === cur.groupKey) : undefined;
+    if (!f) return;
+    flash("🤖 AI 清理此句框中…");
+    const words = vocabByCategory(f.category, f.pos, f.slot).slice(0, 40).map((w) => w.word);
+    const bad = await checkFrame(frameDisplay(f), words);
+    if (bad && bad.length) {
+      bad.forEach((w) => badCombosRef.current.add(`${f.frame}|${w}`));
+      await addBadCombos(f.frame, bad, "ai");
+      flash(`AI 排除了 ${bad.length} 個不通組合`);
+    } else flash(bad ? "AI 沒找到不通組合" : "AI 清理失敗(需 OpenAI 金鑰)");
+  }
 
   function finish() {
     clearTimers();
@@ -508,8 +535,9 @@ export default function TrainingPage() {
     initContent().then(async () => {
       // Phase 2 選詞情境:使用中詞本 + 單字複習狀態
       const wb = getActiveWordbook();
-      const [review, drills] = await Promise.all([getWordReviewMap(), getDrillReviewMap()]);
-      setSelectionContext(wb, review);
+      const [review, drills, bad] = await Promise.all([getWordReviewMap(), getDrillReviewMap(), getBadCombos()]);
+      badCombosRef.current = bad;
+      setSelectionContext(wb, review, bad);
       drillReviewRef.current = drills;
       setContentTick((t) => t + 1);
     });
@@ -873,6 +901,8 @@ export default function TrainingPage() {
         <button onClick={() => setWebSpeechOn((v) => !v)} className="btn-ghost">{webSpeechOn ? "🎙 即時辨識開" : "🎙 即時辨識關"}</button>
         <button onClick={markWordUnknown} className="btn-ghost text-red-400">✗ 單詞不熟</button>
         <button onClick={markSentenceUnknown} className="btn-ghost text-red-400">✗ 句子不熟</button>
+        <button onClick={markBadCombo} className="btn-ghost text-slate-400">🚫 這句不通</button>
+        <button onClick={aiCleanFrame} className="btn-ghost text-slate-400">🤖 清理句框</button>
       </div>
       {markedMsg && <p className="mt-2 text-center text-xs text-accent">{markedMsg}</p>}
       {micError && <p className="mt-3 text-center text-xs text-gold">麥克風無法使用，已切換為手動模式。</p>}

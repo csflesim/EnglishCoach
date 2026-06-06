@@ -28,6 +28,18 @@ export type Wordbook = { name: string; label: string | null };
 let wbCatalog: Wordbook[] = [];
 let applied = false;
 
+// 封鎖名單(句框×單字 不通)——以 "frame|word" 為鍵
+export const badComboKey = (frame: string, word: string) => `${frame}|${word}`;
+export async function getBadCombos(): Promise<Set<string>> {
+  if (!hasSupabase) return new Set();
+  const rows = await selectAll<{ frame: string; word: string }>("bad_combos", "frame,word");
+  return new Set(rows.map((r) => badComboKey(r.frame, r.word)));
+}
+export async function addBadCombos(frame: string, words: string[], reason = ""): Promise<void> {
+  if (!hasSupabase || !words.length) return;
+  await upsertRows("bad_combos", words.map((w) => ({ frame, word: w, reason })), "frame,word");
+}
+
 function cyclesFromRows(cycles: CycleRow[], units: UnitRow[]): Cycle[] {
   return [...cycles].sort((a, b) => a.cycle - b.cycle).map((c) => ({
     cycle: c.cycle,

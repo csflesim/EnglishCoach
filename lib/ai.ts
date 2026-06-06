@@ -9,6 +9,17 @@ export type EvalResult = {
   weakness: string;
 };
 
+export async function checkFrame(frame: string, words: string[]): Promise<string[] | null> {
+  try {
+    const r = await fetch("/api/check-frame", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ frame, words }) });
+    const j = await r.json();
+    if (j.error || !Array.isArray(j.bad)) return null;
+    return j.bad as string[];
+  } catch {
+    return null;
+  }
+}
+
 export type LearnAnalysis = { summary: string; tips: string[] };
 export async function analyzeLearning(data: unknown): Promise<LearnAnalysis | null> {
   try {

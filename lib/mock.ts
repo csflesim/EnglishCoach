@@ -56,14 +56,17 @@ export type VocabWord = { word: string; nativeZh: string; category: string; pos?
 export type WordReview = { status: string; wrong_count: number; next_review: string | null };
 let activeWordbook: string | null = null;
 let wordReviewMap: Map<string, WordReview> = new Map();
-export function setSelectionContext(wb: string | null, review: Map<string, WordReview>) {
+let badCombos: Set<string> = new Set(); // "frame|word" 不通組合,選詞時排除
+export function setSelectionContext(wb: string | null, review: Map<string, WordReview>, bad?: Set<string>) {
   activeWordbook = wb;
   wordReviewMap = review;
+  if (bad) badCombos = bad;
 }
 // Phase 2 選詞:使用中詞本 → 文法槽 → 答錯優先 + 保留 ¼ 複習 + 其餘由易到難
 export function selectForFrame(f: SubFrame, n = SUBSTITUTION_TARGET): VocabWord[] {
   let pool = vocabByCategory(f.category, f.pos, f.slot); // 已按 difficulty 由易到難
   if (activeWordbook && activeWordbook !== "ALL") pool = pool.filter((w) => w.wordbooks?.includes(activeWordbook!));
+  if (badCombos.size) pool = pool.filter((w) => !badCombos.has(`${f.frame}|${w.word}`)); // 排除已標不通的組合
   if (pool.length <= n) return pool;
   const now = Date.now();
   const info = (w: VocabWord) => wordReviewMap.get(w.word);
