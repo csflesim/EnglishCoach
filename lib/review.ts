@@ -83,6 +83,18 @@ export async function getReviewItems(kind: ReviewKind): Promise<ReviewItem[]> {
   return items.sort((a, b) => rank(a.status) - rank(b.status) || (a.next_review ?? "").localeCompare(b.next_review ?? ""));
 }
 
+// 單字複習狀態 map(word→狀態),供選詞引擎(答錯優先 / 到期複習)
+export async function getWordReviewMap(): Promise<Map<string, { status: string; wrong_count: number; next_review: string | null }>> {
+  const m = new Map<string, { status: string; wrong_count: number; next_review: string | null }>();
+  if (!hasSupabase) return m;
+  const items = await getReviewItems("word");
+  for (const it of items) {
+    const w = it.ref.replace(/^word:/, "");
+    m.set(w, { status: it.status, wrong_count: it.wrong_count, next_review: it.next_review });
+  }
+  return m;
+}
+
 export function isDue(it: ReviewItem): boolean {
   if (it.status === "weak") return true;
   if (!it.next_review) return true;

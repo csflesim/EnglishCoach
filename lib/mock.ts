@@ -50,7 +50,38 @@ export type PatternLesson = {
 };
 
 // ── 單字庫（替換變數來源；帶分類 + 母語翻譯）──────────────────────
-export type VocabWord = { word: string; nativeZh: string; category: string; pos?: string; slots?: string[]; difficulty?: number };
+export type VocabWord = { word: string; nativeZh: string; category: string; pos?: string; slots?: string[]; difficulty?: number; wordbooks?: string[] };
+
+// ── 選詞情境(由 app 注入:使用中詞本 + 單字複習狀態)──
+export type WordReview = { status: string; wrong_count: number; next_review: string | null };
+let activeWordbook: string | null = null;
+let wordReviewMap: Map<string, WordReview> = new Map();
+export function setSelectionContext(wb: string | null, review: Map<string, WordReview>) {
+  activeWordbook = wb;
+  wordReviewMap = review;
+}
+// Phase 2 選詞:使用中詞本 → 文法槽 → 答錯優先 + 保留 ¼ 複習 + 其餘由易到難
+export function selectForFrame(f: SubFrame, n = SUBSTITUTION_TARGET): VocabWord[] {
+  let pool = vocabByCategory(f.category, f.pos, f.slot); // 已按 difficulty 由易到難
+  if (activeWordbook && activeWordbook !== "ALL") pool = pool.filter((w) => w.wordbooks?.includes(activeWordbook!));
+  if (pool.length <= n) return pool;
+  const now = Date.now();
+  const info = (w: VocabWord) => wordReviewMap.get(w.word.toLowerCase());
+  const overdue = (w: VocabWord) => { const r = info(w); return r?.next_review ? new Date(r.next_review).getTime() <= now : true; };
+  const wrong = pool.filter((w) => { const r = info(w); return r && (r.status === "weak" || r.wrong_count > 0); });
+  const reviewDue = pool.filter((w) => { const r = info(w); return r && r.wrong_count === 0 && r.status !== "weak" && overdue(w); });
+  const wset = new Set([...wrong, ...reviewDue].map((w) => w.word));
+  const fresh = pool.filter((w) => !info(w) && !wset.has(w.word));
+  const others = pool.filter((w) => !wset.has(w.word) && info(w) && !reviewDue.includes(w));
+  const reserve = Math.floor(n / 4); // ¼ 給複習(之前對過、到期)
+  const out: VocabWord[] = [];
+  const push = (arr: VocabWord[], limit: number) => { for (const w of arr) { if (out.length >= limit) break; if (!out.includes(w)) out.push(w); } };
+  push(wrong, n - reserve); // 答錯優先(留出複習額度)
+  push(reviewDue, out.length + reserve); // 保留 ¼ 複習
+  push(fresh, n); // 沒用過、簡單先
+  push(others, n); // 補滿
+  return out.slice(0, n);
+}
 
 export let vocabBank: VocabWord[] = [
   // need_thing —「I need ___.」
@@ -656,7 +687,7 @@ export function buildSession(lesson: PatternLesson, type: DrillType, key?: strin
     const frames = key ? all.filter((f) => f.frame === key) : all;
     const steps: Step[] = [];
     for (const f of frames) {
-      const words = vocabByCategory(f.category, f.pos, f.slot);
+      const words = selectForFrame(f);
       words.forEach((w, i) => {
         if (f.conj) {
           // 固定主詞(subj)優先;否則指定人稱→全用;再否則輪流
@@ -676,7 +707,7 @@ export function buildSession(lesson: PatternLesson, type: DrillType, key?: strin
     if (!f) return [];
     const p: PKey = f.subj ?? (person && person !== "all" ? person : "I");
     const op = (key ?? "past") as Op;
-    const steps = vocabByCategory(f.category, f.pos, f.slot).map((w) => {
+    const steps = selectForFrame(f).map((w) => {
       const r = renderSentence(f, p, w.word, w.nativeZh, op);
       return { type, cue: w.word, answer: r.en, nativeZh: r.native, groupKey: op, groupTitle: `${opLabel[op]} · ${SUBJ[p].en}` };
     });

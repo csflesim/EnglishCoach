@@ -17,14 +17,15 @@ import {
   PERSON_ORDER,
   TRANSFORM_OPS,
   opLabel,
+  setSelectionContext,
   type DrillType,
   type Step,
   type PKey,
 } from "@/lib/mock";
 import { initProgress, markMode, lessonProgress, recommendNextLessonId, type ProgressMap } from "@/lib/progress";
-import { initContent } from "@/lib/content";
+import { initContent, getActiveWordbook } from "@/lib/content";
 import { transcribe, evaluate, type EvalResult } from "@/lib/ai";
-import { logReview } from "@/lib/review";
+import { logReview, getWordReviewMap } from "@/lib/review";
 import { logSession } from "@/lib/practice";
 
 type Mode = "home" | "select" | "selectSub" | "selectSubPerson" | "selectTransFrame" | "selectOp" | "running" | "complete";
@@ -404,7 +405,15 @@ export default function TrainingPage() {
   }
   useEffect(() => () => { clearTimers(); closeMic(); }, []);
   useEffect(() => { initProgress().then(setProgress); }, []);
-  useEffect(() => { initContent().then(() => setContentTick((t) => t + 1)); }, []);
+  useEffect(() => {
+    initContent().then(async () => {
+      // Phase 2 選詞情境:使用中詞本 + 單字複習狀態
+      const wb = getActiveWordbook();
+      const review = await getWordReviewMap();
+      setSelectionContext(wb, review);
+      setContentTick((t) => t + 1);
+    });
+  }, []);
 
   // ─────────── HOME ───────────
   if (mode === "home") {
