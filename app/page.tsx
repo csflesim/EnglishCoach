@@ -78,6 +78,8 @@ export default function TrainingPage() {
   const [micError, setMicError] = useState(false);
   const [echoLoop, setEchoLoop] = useState(false);
   const [showTranslation, setShowTranslation] = useState(false); // 提示時是否顯示中文(預設關)
+  const [webSpeechOn, setWebSpeechOn] = useState(true); // 瀏覽器即時辨識(免費)
+  const [heardText, setHeardText] = useState(""); // 即時辨識到的文字
   const [echoStep, setEchoStep] = useState<"t1" | "t1echo" | "nat" | "t2" | "t2echo" | null>(null);
   const [durationSec, setDurationSec] = useState(0);
   const [progress, setProgress] = useState<ProgressMap>({});
@@ -91,6 +93,12 @@ export default function TrainingPage() {
   const aiRef = useRef(false);
   aiRef.current = aiOn;
   const recorderRef = useRef<MediaRecorder | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recognitionRef = useRef<any>(null); // Web Speech 即時辨識
+  const liveTranscriptRef = useRef("");
+  const webSpeechActiveRef = useRef(false); // 本發是否真的啟用了 Web Speech(支援才有)
+  const webSpeechOnRef = useRef(true);
+  webSpeechOnRef.current = webSpeechOn;
   const chunksRef = useRef<Blob[]>([]);
   const drillReviewRef = useRef<Map<string, DrillReview>>(new Map()); // drill gap 狀態
   const sessionErrorRef = useRef(false); // 本輪是否有答錯/標不熟
@@ -273,12 +281,43 @@ export default function TrainingPage() {
     }
   }
 
+  function startWebSpeech() {
+    webSpeechActiveRef.current = false;
+    if (!webSpeechOnRef.current) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) return;
+    try {
+      liveTranscriptRef.current = "";
+      setHeardText("");
+      const rec = new SR();
+      rec.lang = "en-US";
+      rec.interimResults = true;
+      rec.continuous = true;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      rec.onresult = (e: any) => {
+        let t = "";
+        for (let i = 0; i < e.results.length; i++) t += e.results[i][0].transcript;
+        liveTranscriptRef.current = t;
+        setHeardText(t);
+      };
+      rec.onerror = () => {};
+      recognitionRef.current = rec;
+      rec.start();
+      webSpeechActiveRef.current = true;
+    } catch { recognitionRef.current = null; }
+  }
+  function stopWebSpeech() {
+    try { recognitionRef.current?.stop(); } catch {}
+    recognitionRef.current = null;
+  }
   function startListening() {
     if (phaseRef.current !== "cue") return;
     listenStartRef.current = performance.now();
     lastVoiceRef.current = performance.now();
     setPhase("listening");
     phaseRef.current = "listening";
+    startWebSpeech();
     if (micRef.current) {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rafRef.current = requestAnimationFrame(loop);
@@ -311,6 +350,28 @@ export default function TrainingPage() {
     setEchoStep(null);
     setAiResult(null);
     const cur = stepsRef.current[idxRef.current];
+    // 給辨識一點時間收尾,再讀最終文字
+    const usedWebSpeech = webSpeechActiveRef.current;
+    stopWebSpeech();
+    if (usedWebSpeech) {
+      schedule(() => {
+        const said = liveTranscriptRef.current.trim();
+        setHeardText(said);
+        if (aiRef.current && said) {
+          setScoring(true);
+          evaluate({ pattern: lessonRef.current.patternText, expected: cur.answer, transcript: said, drillType: cur.type }).then((res) => {
+            setScoring(false);
+            setAiResult(res ? { ...res, transcript: said } : null);
+            if (res && !res.correct) { logRep(cur, "wrong"); repWordMarkedRef.current = true; }
+            if (res?.weakness) bumpWeaknessTag(res.weakness);
+            revealAndContinue(cur);
+          });
+        } else {
+          revealAndContinue(cur);
+        }
+      }, 350);
+      return;
+    }
     const rec = recorderRef.current;
     if (aiRef.current && micRef.current && rec && rec.state !== "inactive") {
       setScoring(true);
@@ -322,7 +383,7 @@ export default function TrainingPage() {
         setScoring(false);
         setAiResult(res ? { ...res, transcript: text ?? "" } : null);
         if (res && !res.correct) { logRep(cur, "wrong"); repWordMarkedRef.current = true; }
-        if (res?.weakness) bumpWeaknessTag(res.weakness); // 常錯結構累積
+        if (res?.weakness) bumpWeaknessTag(res.weakness);
         revealAndContinue(cur);
       };
       try { rec.stop(); } catch { setScoring(false); revealAndContinue(cur); }
@@ -382,6 +443,7 @@ export default function TrainingPage() {
   function finish() {
     clearTimers();
     try { window.speechSynthesis?.cancel(); } catch {}
+    stopWebSpeech();
     closeMic();
     const dur = (Date.now() - startRef.current) / 1000;
     setDurationSec(dur);
@@ -436,6 +498,7 @@ export default function TrainingPage() {
   function stop() {
     clearTimers();
     try { window.speechSynthesis?.cancel(); } catch {}
+    stopWebSpeech();
     closeMic();
     setMode("select");
   }
@@ -746,6 +809,7 @@ export default function TrainingPage() {
             {showTranslation && step?.nativeZh && <div className="text-base text-slate-400">{step.nativeZh}</div>}
             <div className={`text-4xl font-black tabular-nums ${liveTimer > 3 ? "text-red-400" : liveTimer > 1.5 ? "text-gold" : "text-accent"}`}>{liveTimer.toFixed(1)}s</div>
             <div className="text-xs text-slate-500">⏱ 反應速度計時中（3 秒內開口為佳，不會打斷你）</div>
+            {webSpeechOn && <div className="min-h-[1.25rem] text-sm text-accent">{heardText ? `辨識:${heardText}` : "🎙 即時辨識中…"}</div>}
             {micRef.current ? (
               <div className="flex items-center gap-2 text-sm text-accent"><span className="text-lg">🎙</span> 偵測中…大聲說出完整句子</div>
             ) : (
@@ -761,6 +825,7 @@ export default function TrainingPage() {
               說完即可，我不會打斷你
             </div>
             <div className="text-xs text-slate-500">反應速度：<span className={tierColor[tier(reaction)]}>{reaction.toFixed(1)}s · {tier(reaction)}</span></div>
+            {webSpeechOn && heardText && <div className="text-sm text-accent">辨識:{heardText}</div>}
             {!micRef.current && <button onClick={endSpeaking} className="btn-primary px-8 py-3">說完了 →</button>}
           </>
         ) : echoStep ? (
@@ -784,6 +849,7 @@ export default function TrainingPage() {
             <div className="text-2xl font-semibold text-accent">“{step?.answer}”</div>
             {step?.nativeZh && <div className="text-sm text-slate-500">{step.nativeZh}</div>}
             <div className="text-sm text-slate-400">你的反應：<span className={tierColor[tier(reaction)]}>{reaction.toFixed(1)}s · {tier(reaction)}</span></div>
+            {!aiResult && heardText && <div className="mt-1 text-sm text-accent">你說的(即時辨識):「{heardText}」</div>}
             {scoring && <div className="mt-1 text-sm text-slate-400 animate-pulse">🤖 AI 評分中…</div>}
             {aiResult && (
               <div className="mt-2 w-full max-w-md rounded-xl border border-ink-700 bg-ink-900/40 p-3 text-left text-sm">
@@ -804,6 +870,7 @@ export default function TrainingPage() {
         <button onClick={togglePause} className="btn-ghost">{paused ? "▶ 繼續" : "⏸ 暫停"}</button>
         <button onClick={() => setAudioOn((v) => !v)} className="btn-ghost">{audioOn ? "🔊 語音開" : "🔇 語音關"}</button>
         <button onClick={() => setShowTranslation((v) => !v)} className="btn-ghost">{showTranslation ? "🌐 翻譯開" : "🌐 翻譯關"}</button>
+        <button onClick={() => setWebSpeechOn((v) => !v)} className="btn-ghost">{webSpeechOn ? "🎙 即時辨識開" : "🎙 即時辨識關"}</button>
         <button onClick={markWordUnknown} className="btn-ghost text-red-400">✗ 單詞不熟</button>
         <button onClick={markSentenceUnknown} className="btn-ghost text-red-400">✗ 句子不熟</button>
       </div>
