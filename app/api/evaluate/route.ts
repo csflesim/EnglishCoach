@@ -14,7 +14,8 @@ export async function POST(req: Request) {
       `Expected answer (THE target): ${expected}\n` +
       `Learner said: ${transcript}\n\n` +
       `Judge ONLY whether "Learner said" matches the "Expected answer" — same words & structure (ignore punctuation/casing/filler). correct=true if it matches the Expected answer, even if the sentence is unusual in real life. Do NOT penalize for differing from the generic Pattern.\n` +
-      `Return JSON exactly: {"correct": boolean, "accuracy": 0-100, "grammar": 0-100, "fluency": 0-100, "feedback": "<one short sentence in Traditional Chinese>", "weakness": "<one short tag in Traditional Chinese: 冠詞/時態/介係詞/字序/單複數/發音/用詞, or 無>"}`;
+      `If incorrect, identify EVERY error category that applies (from this fixed list): 單詞(wrong/missing vocabulary word), 文法(grammar), 時態(tense), 冠詞(a/an/the), 介係詞(preposition), 字序(word order), 單複數(singular/plural), 發音(a likely mispronunciation inferred from the transcript), 用詞(word choice). The feedback MUST be specific: say WHAT is wrong and the correction (e.g. "時態錯:應改用過去式 worked").\n` +
+      `Return JSON exactly: {"correct": boolean, "accuracy": 0-100, "grammar": 0-100, "fluency": 0-100, "feedback": "<specific Traditional Chinese: what's wrong + how to fix>", "errors": ["<category from the list>", ...] }. If correct, errors=[].`;
 
     const r = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",

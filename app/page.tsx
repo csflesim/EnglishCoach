@@ -24,10 +24,10 @@ import {
   type PKey,
 } from "@/lib/mock";
 import { initProgress, markMode, lessonProgress, recommendNextLessonId, type ProgressMap } from "@/lib/progress";
-import { initContent, getActiveWordbook, getComboChecks, recordChecks } from "@/lib/content";
+import { initContent, getActiveWordbook, getComboChecks, recordChecks, logErrors } from "@/lib/content";
 import { transcribe, evaluate, checkFrame, type EvalResult } from "@/lib/ai";
 import { logReview, getWordReviewMap, getDrillReviewMap, drillKey, repCountForBox, logDrill, type DrillReview } from "@/lib/review";
-import { logSession, bumpWeaknessTag } from "@/lib/practice";
+import { logSession } from "@/lib/practice";
 
 type Mode = "home" | "select" | "selectSub" | "selectSubPerson" | "selectTransFrame" | "selectOp" | "running" | "complete";
 type RunPhase = "groupIntro" | "cue" | "listening" | "speaking" | "reveal";
@@ -369,7 +369,7 @@ export default function TrainingPage() {
             setScoring(false);
             setAiResult(res ? { ...res, transcript: said } : null);
             if (res && !res.correct) { logRep(cur, "wrong"); repWordMarkedRef.current = true; }
-            if (res?.weakness) bumpWeaknessTag(res.weakness);
+            if (res?.errors?.length) { logErrors(res.errors, { expected: cur.answer, said, lessonId: lessonRef.current?.id ?? selectedId }); }
             revealAndContinue(cur);
           });
         } else {
@@ -389,7 +389,7 @@ export default function TrainingPage() {
         setScoring(false);
         setAiResult(res ? { ...res, transcript: text ?? "" } : null);
         if (res && !res.correct) { logRep(cur, "wrong"); repWordMarkedRef.current = true; }
-        if (res?.weakness) bumpWeaknessTag(res.weakness);
+        if (res?.errors?.length) { logErrors(res.errors, { expected: cur.answer, said: text ?? "", lessonId: lessonRef.current?.id ?? selectedId }); }
         revealAndContinue(cur);
       };
       try { rec.stop(); } catch { setScoring(false); revealAndContinue(cur); }
@@ -888,7 +888,7 @@ export default function TrainingPage() {
                   <span className="text-xs text-slate-500">準確 {aiResult.accuracy} · 文法 {aiResult.grammar} · 流暢 {aiResult.fluency}</span>
                 </div>
                 <div className="mt-1.5 text-slate-200">{aiResult.feedback}</div>
-                {aiResult.weakness && aiResult.weakness !== "無" && <div className="mt-1 text-xs text-gold">弱點：{aiResult.weakness}</div>}
+                {aiResult.errors?.length > 0 && <div className="mt-1 text-xs text-gold">錯誤類別:{aiResult.errors.join("、")}</div>}
               </div>
             )}
           </>

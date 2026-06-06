@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Shell from "@/components/Shell";
 import { getReviewItems, type ReviewItem } from "@/lib/review";
-import { getSessions, slowByLesson, getWeaknessTags } from "@/lib/practice";
+import { getSessions, slowByLesson } from "@/lib/practice";
+import { getErrorStats } from "@/lib/content";
 import { getLesson } from "@/lib/mock";
 import { analyzeLearning, type LearnAnalysis } from "@/lib/ai";
 import { hasSupabase } from "@/lib/supabase";
@@ -31,7 +32,7 @@ export default function AnalysisPage() {
       setLoaded(true);
     });
     getSessions().then((ss) => setSlow(slowByLesson(ss).filter((x) => x.avg >= 2).slice(0, 6)));
-    setTags(getWeaknessTags());
+    getErrorStats().then(setTags);
   }, []);
 
   async function runAI() {

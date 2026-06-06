@@ -6,7 +6,7 @@ export type EvalResult = {
   grammar: number;
   fluency: number;
   feedback: string;
-  weakness: string;
+  errors: string[]; // 錯誤類別:單詞/文法/時態/冠詞/介係詞/字序/單複數/發音/用詞
 };
 
 export async function checkFrame(frame: string, words: string[]): Promise<string[] | null> {
@@ -59,7 +59,7 @@ export async function evaluate(p: {
     });
     const j = await r.json();
     if (j.error || typeof j.correct === "undefined") return null;
-    return j as EvalResult;
+    return { ...j, errors: Array.isArray(j.errors) ? j.errors : [] } as EvalResult;
   } catch {
     return null;
   }
