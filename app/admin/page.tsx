@@ -117,8 +117,8 @@ function PatternsAdmin({ onChange }: { onChange: () => void }) {
       <div className="card p-4">
         <div className="mb-2 text-sm font-semibold text-slate-300">句框({frames.length})</div>
         <ul className="space-y-2">
-          {frames.map((f) => (
-            <li key={f.frame} className="flex items-center gap-3 rounded-lg border border-ink-700 bg-ink-900/40 px-3 py-2">
+          {frames.map((f, i) => (
+            <li key={`${f.frame}-${i}`} className="flex items-center gap-3 rounded-lg border border-ink-700 bg-ink-900/40 px-3 py-2">
               <div className="min-w-0 flex-1">
                 <code className="text-sm text-slate-100">{frameDisplay(f)}</code>
                 <div className="text-xs text-slate-500">{f.frameZh} · {f.category} · {subFrameCount(f)} 字</div>

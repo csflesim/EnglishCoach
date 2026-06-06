@@ -543,7 +543,7 @@ export default function TrainingPage() {
         </div>
         <div className="space-y-3">
           {framesOf(lesson).map((f, i) => (
-            <button key={f.frame} onClick={() => { setSelectedFrame(f.frame); if (f.conj && !f.subj) setMode("selectSubPerson"); else startSession("Substitution", f.frame); }} className="card flex w-full items-center gap-3 p-4 text-left transition hover:border-accent/50">
+            <button key={`${f.frame}-${i}`} onClick={() => { setSelectedFrame(f.frame); if (f.conj && !f.subj) setMode("selectSubPerson"); else startSession("Substitution", f.frame); }} className="card flex w-full items-center gap-3 p-4 text-left transition hover:border-accent/50">
               <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent/15 text-sm font-bold text-accent">{i + 1}</span>
               <div className="min-w-0 flex-1">
                 <code className="text-base font-semibold text-slate-100">{frameDisplay(f)}</code>
@@ -594,7 +594,7 @@ export default function TrainingPage() {
         </div>
         <div className="space-y-3">
           {transformFrames(lesson).map((f, i) => (
-            <button key={f.frame} onClick={() => { setSelectedFrame(f.frame); setMode("selectOp"); }} className="card flex w-full items-center gap-3 p-4 text-left transition hover:border-accent/50">
+            <button key={`${f.frame}-${i}`} onClick={() => { setSelectedFrame(f.frame); setMode("selectOp"); }} className="card flex w-full items-center gap-3 p-4 text-left transition hover:border-accent/50">
               <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent/15 text-sm font-bold text-accent">{i + 1}</span>
               <div className="min-w-0 flex-1">
                 <code className="text-base font-semibold text-slate-100">{frameDisplay(f)}</code>
