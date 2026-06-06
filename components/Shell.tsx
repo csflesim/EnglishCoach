@@ -44,7 +44,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           <div className="text-[11px] text-slate-500">FSI 反射訓練器</div>
         </div>
         <div className="ml-auto flex items-center gap-3">
-          {user && <span className="text-xs text-slate-500">{user.username}</span>}
+          {user && <Link href="/account" className="text-xs text-slate-400 hover:text-accent" title="帳號設定 · 變更密碼">{user.username}</Link>}
           {user && <button onClick={() => { logout(); router.replace("/login"); }} className="text-xs text-slate-600 hover:text-slate-300" title="登出">登出</button>}
           <Link href="/admin" className="text-slate-600 hover:text-slate-300" title="後台">⚙</Link>
         </div>

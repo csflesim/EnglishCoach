@@ -31,6 +31,14 @@ export async function findUser(username: string): Promise<DbUser | null> {
   const rows = (await r.json()) as DbUser[];
   return rows[0] ?? null;
 }
+export async function updatePassword(id: number, passwordHash: string): Promise<boolean> {
+  const r = await fetch(`${URL}/rest/v1/users?id=eq.${id}`, {
+    method: "PATCH",
+    headers: { ...headers, Prefer: "return=minimal" },
+    body: JSON.stringify({ password_hash: passwordHash }),
+  });
+  return r.ok;
+}
 export async function createUser(username: string, passwordHash: string): Promise<DbUser | null> {
   const r = await fetch(`${URL}/rest/v1/users`, {
     method: "POST",

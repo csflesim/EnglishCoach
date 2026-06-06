@@ -39,6 +39,18 @@ async function call(path: string, username: string, password: string): Promise<{
 export const login = (username: string, password: string) => call("/api/auth/login", username, password);
 export const signup = (username: string, password: string) => call("/api/auth/signup", username, password);
 
+// 變更目前登入者的密碼(需驗證目前密碼)
+export async function changePassword(oldPassword: string, newPassword: string): Promise<{ ok: boolean; error?: string }> {
+  const u = getCurrentUser();
+  if (!u) return { ok: false, error: "未登入" };
+  try {
+    const r = await fetch("/api/auth/change-password", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: u.username, oldPassword, newPassword }) });
+    const j = await r.json();
+    if (!r.ok || j.error) return { ok: false, error: j.error || "失敗" };
+    return { ok: true };
+  } catch (e) { return { ok: false, error: String(e) }; }
+}
+
 // 後台建立帳號:建立但「不」切換目前登入者
 export async function createAccount(username: string, password: string): Promise<{ ok: boolean; error?: string }> {
   try {
