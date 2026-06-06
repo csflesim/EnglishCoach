@@ -137,6 +137,18 @@ export default function TrainingPage() {
       s.speak(u);
     } catch { if (onend) onend(); }
   }
+  // iOS/手機:必須在使用者點擊當下先「解鎖」語音,之後計時器/async 才能播
+  function unlockTTS() {
+    try {
+      const s = window.speechSynthesis;
+      if (!s) return;
+      s.resume();
+      const u = new SpeechSynthesisUtterance(" ");
+      u.volume = 0;
+      s.speak(u);
+      s.getVoices();
+    } catch {}
+  }
   function clearTimers() {
     timeoutsRef.current.forEach((id) => clearTimeout(id));
     timeoutsRef.current = [];
@@ -379,6 +391,7 @@ export default function TrainingPage() {
     setMode("select");
   }
   async function startSession(type: DrillType, opKey?: string, frameKey?: string, person?: PKey | "all") {
+    unlockTTS(); // 在點擊手勢當下解鎖手機語音
     setSelectedOp(opKey);
     setSelectedFrame(frameKey);
     if (person) setSelectedPerson(person);
