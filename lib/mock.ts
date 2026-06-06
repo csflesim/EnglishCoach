@@ -725,9 +725,10 @@ export function buildSession(lesson: PatternLesson, type: DrillType, key?: strin
     if (!f) return [];
     const p: PKey = f.subj ?? (person && person !== "all" ? person : "I");
     const op = (key ?? "past") as Op;
+    const label = renderSentence(f, p, "___", "___", op).en; // 該人稱+操作的句型(保留 ___),供頂部「句型」同步
     const steps = selectForFrame(f).map((w) => {
       const r = renderSentence(f, p, w.word, w.nativeZh, op);
-      return { type, cue: w.word, answer: r.en, nativeZh: r.native, groupKey: op, groupTitle: `${opLabel[op]} · ${SUBJ[p].en}` };
+      return { type, cue: w.word, answer: r.en, nativeZh: r.native, groupKey: op, groupTitle: `${opLabel[op]}:${label}` };
     });
     return steps.slice(0, SUBSTITUTION_TARGET);
   }
