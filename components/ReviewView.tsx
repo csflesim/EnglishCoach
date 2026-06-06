@@ -25,12 +25,39 @@ export default function ReviewView({ kind, title, subtitle }: { kind: ReviewKind
   const [qi, setQi] = useState(0);
   const [stage, setStage] = useState(0); // 0=英文 1=+中文 2=+句子
 
+  // ── TTS(語音朗讀) ──
+  function speak(text: string, lang = "en-US") {
+    try {
+      const s = window.speechSynthesis;
+      if (!s || !text) return;
+      s.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = lang;
+      u.rate = lang.startsWith("zh") ? 1.0 : 0.95;
+      s.speak(u);
+    } catch {}
+  }
+  function unlockTTS() { try { const s = window.speechSynthesis; if (!s) return; s.resume(); const u = new SpeechSynthesisUtterance(" "); u.volume = 0; s.speak(u); } catch {} }
+
   async function load() {
     await initContent(); // 確保 vocabBank(中文/例句)已載入
     setItems(await getReviewItems(kind));
     setLoaded(true);
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [kind]);
+
+  // 取得卡片內容(英文/中文/例句)
+  function cardOf(it: ReviewItem) {
+    return kind === "word" ? wordFlashcard(it.text) : { word: it.text, zh: it.native_zh, sentence: it.text, sentenceZh: it.native_zh };
+  }
+  // 自動朗讀:英文(word)→ 英文(word)→ 句子;句子卡都唸英文句
+  useEffect(() => {
+    if (!flash || !queue[qi]) return;
+    const fc = cardOf(queue[qi]);
+    if (kind === "word") speak(stage >= 2 ? (fc.sentence || fc.word) : fc.word, "en-US");
+    else speak(fc.sentence, "en-US");
+    /* eslint-disable-next-line */
+  }, [flash, qi, stage]);
 
   async function mark(it: ReviewItem, event: "correct" | "unknown") {
     await logReview({ kind, ref: it.ref, text: it.text, nativeZh: it.native_zh, patternId: it.pattern_id, event });
@@ -44,6 +71,7 @@ export default function ReviewView({ kind, title, subtitle }: { kind: ReviewKind
   function startFlash() {
     const pool = (onlyDue ? due : items).slice().sort((a, b) => (a.box ?? 0) - (b.box ?? 0) || b.wrong_count - a.wrong_count);
     if (!pool.length) return;
+    unlockTTS(); // 在點擊手勢當下解鎖手機語音
     setQueue(pool); setQi(0); setStage(0); setFlash(true);
   }
   async function answer(it: ReviewItem, remembered: boolean) {
@@ -56,7 +84,7 @@ export default function ReviewView({ kind, title, subtitle }: { kind: ReviewKind
   // ── 閃卡畫面 ──
   if (flash && queue[qi]) {
     const it = queue[qi];
-    const fc = kind === "word" ? wordFlashcard(it.text) : { word: it.text, zh: it.native_zh, sentence: it.text, sentenceZh: it.native_zh };
+    const fc = cardOf(it);
     const maxStage = kind === "word" ? 2 : 1; // 句子複習沒有「另一句例句」
     const last = stage >= maxStage;
     return (
@@ -72,7 +100,10 @@ export default function ReviewView({ kind, title, subtitle }: { kind: ReviewKind
         <div className="card flex min-h-[340px] flex-col items-center justify-center gap-5 p-6 text-center">
           <span className={`chip text-[10px] ${statusCls[it.status] ?? statusCls.new}`}>Box {it.box ?? 0} · {statusZh[it.status] ?? it.status}</span>
           {/* 英文(永遠顯示) */}
-          <div className="text-3xl font-bold text-slate-100">{kind === "word" ? fc.word : fc.sentence}</div>
+          <div className="flex items-center gap-2">
+            <div className="text-3xl font-bold text-slate-100">{kind === "word" ? fc.word : fc.sentence}</div>
+            <button onClick={() => speak(kind === "word" ? (stage >= 2 ? (fc.sentence || fc.word) : fc.word) : fc.sentence, "en-US")} className="text-xl text-slate-500 hover:text-accent" title="再聽一次">🔊</button>
+          </div>
           {/* 中文(stage ≥ 1) */}
           {stage >= 1 ? (
             <div className="text-xl text-gold">{fc.zh || "(無中文)"}</div>
