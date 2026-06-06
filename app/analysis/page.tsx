@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Shell from "@/components/Shell";
 import { getReviewItems, type ReviewItem } from "@/lib/review";
+import { getSessions, slowByLesson, getWeaknessTags } from "@/lib/practice";
+import { getLesson } from "@/lib/mock";
 import { analyzeLearning, type LearnAnalysis } from "@/lib/ai";
 import { hasSupabase } from "@/lib/supabase";
 
@@ -18,6 +20,8 @@ export default function AnalysisPage() {
   const [ai, setAi] = useState<LearnAnalysis | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiMsg, setAiMsg] = useState("");
+  const [slow, setSlow] = useState<{ lesson_id: string; avg: number; count: number }[]>([]);
+  const [tags, setTags] = useState<{ tag: string; count: number }[]>([]);
 
   useEffect(() => {
     Promise.all([getReviewItems("word"), getReviewItems("sentence"), getReviewItems("drill")]).then(([w, s, d]) => {
@@ -26,6 +30,8 @@ export default function AnalysisPage() {
       setDrills(d.filter(isWeak).sort(byWrong));
       setLoaded(true);
     });
+    getSessions().then((ss) => setSlow(slowByLesson(ss).filter((x) => x.avg >= 2).slice(0, 6)));
+    setTags(getWeaknessTags());
   }, []);
 
   async function runAI() {
@@ -87,9 +93,44 @@ export default function AnalysisPage() {
             {!ai && !aiMsg && <p className="mt-2 text-xs text-slate-500">免費的話直接看下面清單;想要個人化建議再按 AI(會用一次額度)。</p>}
           </div>
 
+          <Section title="弱句型" items={drills} href="/" hrefLabel="練這個" empty="目前沒有弱句型 🎉" />
+
+          {/* 反應太慢 */}
+          <div className="card mb-4 p-4">
+            <div className="mb-2 text-sm font-semibold text-slate-300">反應太慢(Slow Responses)</div>
+            {slow.length === 0 ? (
+              <p className="py-2 text-center text-xs text-slate-600">還沒有足夠資料(多練幾輪)。</p>
+            ) : (
+              <ul className="space-y-1.5">
+                {slow.map((s) => (
+                  <li key={s.lesson_id} className="flex items-center gap-2 rounded-lg border border-ink-700 bg-ink-900/40 px-2.5 py-1.5 text-sm">
+                    <span className="min-w-0 flex-1 truncate text-slate-100">{getLesson(s.lesson_id).patternText}</span>
+                    <span className="chip bg-gold/15 text-[10px] text-gold">平均 {s.avg.toFixed(1)}s</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {/* 常錯結構(AI 評分累積) */}
+          <div className="card mb-4 p-4">
+            <div className="mb-2 text-sm font-semibold text-slate-300">常錯結構(Incorrect Structures)</div>
+            {tags.length === 0 ? (
+              <p className="py-2 text-center text-xs text-slate-600">開 🤖 AI 評分練習後,這裡會累積(冠詞/時態/介係詞…)。</p>
+            ) : (
+              <ul className="space-y-1.5">
+                {tags.map((t) => (
+                  <li key={t.tag} className="flex items-center justify-between rounded-lg border border-ink-700 bg-ink-900/40 px-2.5 py-1.5 text-sm">
+                    <span className="text-slate-100">{t.tag}</span>
+                    <span className="text-xs text-slate-500">出現 {t.count} 次</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
           <Section title="弱單字" items={words} href="/words" hrefLabel="去單詞複習" empty="目前沒有弱單字 🎉" />
           <Section title="弱句子" items={sentences} href="/sentences" hrefLabel="去句子複習" empty="目前沒有弱句子 🎉" />
-          <Section title="弱句型" items={drills} href="/" hrefLabel="去訓練" empty="目前沒有弱句型 🎉" />
         </>
       )}
     </Shell>

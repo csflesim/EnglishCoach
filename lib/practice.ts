@@ -57,6 +57,33 @@ export type PracticeStats = {
   avgReaction: number | null;
 };
 
+// 常錯結構標籤(AI 評分時累積;存 localStorage)
+const WKEY = "erc_weakness_tags";
+export function bumpWeaknessTag(tag: string) {
+  if (typeof window === "undefined" || !tag || tag === "無") return;
+  try { const m = JSON.parse(localStorage.getItem(WKEY) || "{}"); m[tag] = (m[tag] || 0) + 1; localStorage.setItem(WKEY, JSON.stringify(m)); } catch { /* ignore */ }
+}
+export function getWeaknessTags(): { tag: string; count: number }[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const m = JSON.parse(localStorage.getItem(WKEY) || "{}");
+    return Object.entries(m).map(([tag, count]) => ({ tag, count: count as number })).sort((a, b) => b.count - a.count);
+  } catch { return []; }
+}
+
+// 反應太慢:依 lesson 聚合平均反應(慢→快)
+export function slowByLesson(sessions: PracticeSession[]): { lesson_id: string; avg: number; count: number }[] {
+  const m: Record<string, { sum: number; n: number }> = {};
+  for (const s of sessions) {
+    if (!s.lesson_id || s.avg_reaction == null) continue;
+    const e = (m[s.lesson_id] ??= { sum: 0, n: 0 });
+    e.sum += s.avg_reaction; e.n += 1;
+  }
+  return Object.entries(m)
+    .map(([lesson_id, e]) => ({ lesson_id, avg: e.sum / e.n, count: e.n }))
+    .sort((a, b) => b.avg - a.avg);
+}
+
 export function computeStats(sessions: PracticeSession[]): PracticeStats {
   const mins = dailyMinutes(sessions);
   const days = Object.keys(mins).length;

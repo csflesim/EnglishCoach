@@ -26,7 +26,7 @@ import { initProgress, markMode, lessonProgress, recommendNextLessonId, type Pro
 import { initContent, getActiveWordbook } from "@/lib/content";
 import { transcribe, evaluate, type EvalResult } from "@/lib/ai";
 import { logReview, getWordReviewMap, getDrillReviewMap, drillKey, repCountForBox, logDrill, type DrillReview } from "@/lib/review";
-import { logSession } from "@/lib/practice";
+import { logSession, bumpWeaknessTag } from "@/lib/practice";
 
 type Mode = "home" | "select" | "selectSub" | "selectSubPerson" | "selectTransFrame" | "selectOp" | "running" | "complete";
 type RunPhase = "groupIntro" | "cue" | "listening" | "speaking" | "reveal";
@@ -322,6 +322,7 @@ export default function TrainingPage() {
         setScoring(false);
         setAiResult(res ? { ...res, transcript: text ?? "" } : null);
         if (res && !res.correct) { logRep(cur, "wrong"); repWordMarkedRef.current = true; }
+        if (res?.weakness) bumpWeaknessTag(res.weakness); // 常錯結構累積
         revealAndContinue(cur);
       };
       try { rec.stop(); } catch { setScoring(false); revealAndContinue(cur); }
