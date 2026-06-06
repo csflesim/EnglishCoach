@@ -93,6 +93,7 @@ export default function TrainingPage() {
   const chunksRef = useRef<Blob[]>([]);
   const drillReviewRef = useRef<Map<string, DrillReview>>(new Map()); // drill gap 狀態
   const sessionErrorRef = useRef(false); // 本輪是否有答錯/標不熟
+  const repWordMarkedRef = useRef(false); // 本發單字是否已標(不熟/錯)→ 不再記「答對」
 
   const timeoutsRef = useRef<number[]>([]);
   const startRef = useRef(0);
@@ -257,6 +258,7 @@ export default function TrainingPage() {
 
   function startCue(i: number) {
     const cur = stepsRef.current[i];
+    repWordMarkedRef.current = false; // 新的一發
     setPhase("cue");
     phaseRef.current = "cue";
     setLiveTimer(0);
@@ -318,7 +320,7 @@ export default function TrainingPage() {
         if (text) res = await evaluate({ pattern: lessonRef.current.patternText, expected: cur.answer, transcript: text, drillType: cur.type });
         setScoring(false);
         setAiResult(res ? { ...res, transcript: text ?? "" } : null);
-        if (res && !res.correct) logRep(cur, "wrong");
+        if (res && !res.correct) { logRep(cur, "wrong"); repWordMarkedRef.current = true; }
         revealAndContinue(cur);
       };
       try { rec.stop(); } catch { setScoring(false); revealAndContinue(cur); }
@@ -327,6 +329,8 @@ export default function TrainingPage() {
     }
   }
   function revealAndContinue(cur: Step) {
+    // 練過就讓單字升 box(由易到難推進);若已標不熟/答錯則不記
+    if (!repWordMarkedRef.current && cur.cue) logWord(cur, "correct");
     if (echoRef.current && cur.nativeZh) {
       runEcho(cur.answer, cur.nativeZh);
     } else {
@@ -356,21 +360,21 @@ export default function TrainingPage() {
     });
   }
   // 寫入複習紀錄(答錯 / 標記不熟):句子 / 單字 可分開
-  function logSentence(cur: Step, event: "wrong" | "unknown") {
-    sessionErrorRef.current = true;
+  function logSentence(cur: Step, event: "wrong" | "unknown" | "correct") {
+    if (event !== "correct") sessionErrorRef.current = true;
     const lid = lessonRef.current?.id ?? selectedId;
     logReview({ kind: "sentence", ref: `sent:${lid}:${cur.answer}`, text: cur.answer, nativeZh: cur.nativeZh, patternId: lid, event });
   }
-  function logWord(cur: Step, event: "wrong" | "unknown") {
+  function logWord(cur: Step, event: "wrong" | "unknown" | "correct") {
     if (!cur.cue) return;
-    sessionErrorRef.current = true;
+    if (event !== "correct") sessionErrorRef.current = true;
     const lid = lessonRef.current?.id ?? selectedId;
     logReview({ kind: "word", ref: `word:${cur.cue.toLowerCase()}`, text: cur.cue, nativeZh: "", patternId: lid, event });
   }
   // AI 判定整句錯 → 句子 + 單字都記
   function logRep(cur: Step, event: "wrong" | "unknown") { logSentence(cur, event); logWord(cur, event); }
   function flash(msg: string) { setMarkedMsg(msg); schedule(() => setMarkedMsg(""), 1500); }
-  function markWordUnknown() { const cur = stepsRef.current[idxRef.current]; if (cur) { logWord(cur, "unknown"); flash("單詞已加入複習"); } }
+  function markWordUnknown() { const cur = stepsRef.current[idxRef.current]; if (cur) { repWordMarkedRef.current = true; logWord(cur, "unknown"); flash("單詞已加入複習"); } }
   function markSentenceUnknown() { const cur = stepsRef.current[idxRef.current]; if (cur) { logSentence(cur, "unknown"); flash("句子已加入複習"); } }
 
   function finish() {
@@ -398,6 +402,8 @@ export default function TrainingPage() {
   }
   async function startSession(type: DrillType, opKey?: string, frameKey?: string, person?: PKey | "all") {
     unlockTTS(); // 在點擊手勢當下解鎖手機語音
+    // 刷新單字複習狀態(練過的會升 box → 換新字、由易到難推進)
+    setSelectionContext(getActiveWordbook(), await getWordReviewMap());
     setSelectedOp(opKey);
     setSelectedFrame(frameKey);
     if (person) setSelectedPerson(person);
