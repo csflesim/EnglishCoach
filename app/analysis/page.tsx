@@ -5,7 +5,7 @@ import Link from "next/link";
 import Shell from "@/components/Shell";
 import { getReviewItems, type ReviewItem } from "@/lib/review";
 import { getSessions, slowByLesson } from "@/lib/practice";
-import { getErrorStats } from "@/lib/content";
+import { getErrorStats, getErrorSamples } from "@/lib/content";
 import { getLesson } from "@/lib/mock";
 import { analyzeLearning, type LearnAnalysis } from "@/lib/ai";
 import { hasSupabase } from "@/lib/supabase";
@@ -37,7 +37,10 @@ export default function AnalysisPage() {
 
   async function runAI() {
     setAiLoading(true); setAiMsg("");
+    const samples = await getErrorSamples(80);
     const payload = {
+      errorCounts: tags, // 各錯誤類別次數
+      errorSamples: samples.map((s) => ({ type: s.kind, said: s.said, correct: s.expected })), // 實際錯誤(你說的 vs 正解)
       weakWords: words.slice(0, 30).map((w) => ({ word: w.text, wrong: w.wrong_count })),
       weakSentences: sentences.slice(0, 20).map((s) => ({ sentence: s.text, wrong: s.wrong_count })),
       weakPatterns: drills.slice(0, 20).map((d) => ({ pattern: d.text, wrong: d.wrong_count })),
@@ -74,24 +77,54 @@ export default function AnalysisPage() {
             {card("弱句型", drills.length, "text-red-400")}
           </div>
 
-          {/* AI 深入分析 */}
+          {/* AI 詳細錯誤分析 */}
           <div className="card mb-4 p-4">
             <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold text-slate-200">AI 深入分析</div>
-              <button onClick={runAI} disabled={aiLoading} className="btn-primary text-sm">{aiLoading ? "分析中…" : "🤖 分析我的學習"}</button>
+              <div className="text-sm font-semibold text-slate-200">AI 詳細錯誤分析</div>
+              <button onClick={runAI} disabled={aiLoading} className="btn-primary text-sm">{aiLoading ? "分析中…" : "🤖 分析我的錯誤"}</button>
             </div>
             {aiMsg && <p className="mt-2 text-xs text-gold">{aiMsg}</p>}
             {ai && (
-              <div className="mt-3 rounded-xl border border-ink-700 bg-ink-900/40 p-3 text-sm">
-                <p className="text-slate-200">{ai.summary}</p>
+              <div className="mt-3 space-y-3">
+                <p className="rounded-xl border border-ink-700 bg-ink-900/40 p-3 text-sm text-slate-200">{ai.summary}</p>
+
+                {ai.categories.length > 0 && (
+                  <div className="space-y-2">
+                    {ai.categories.map((c, i) => (
+                      <div key={i} className="rounded-xl border border-ink-700 bg-ink-900/40 p-3 text-sm">
+                        <div className="mb-1 flex items-center gap-2">
+                          <span className="chip bg-red-500/15 text-[11px] text-red-400">{c.category}</span>
+                          {c.count > 0 && <span className="text-[10px] text-slate-500">出現 {c.count} 次</span>}
+                        </div>
+                        <div className="text-slate-200">{c.diagnosis}</div>
+                        {c.examples.length > 0 && (
+                          <ul className="mt-2 space-y-1">
+                            {c.examples.map((e, k) => (
+                              <li key={k} className="rounded-lg bg-ink-900/60 px-2.5 py-1.5 text-xs">
+                                <span className="text-red-400 line-through">{e.wrong || "(無)"}</span>
+                                <span className="mx-1.5 text-slate-600">→</span>
+                                <span className="text-accent">{e.correct}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        {c.fix && <div className="mt-2 text-xs text-gold">💡 {c.fix}</div>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {ai.tips.length > 0 && (
-                  <ul className="mt-2 list-disc space-y-1 pl-5 text-slate-300">
-                    {ai.tips.map((t, i) => <li key={i}>{t}</li>)}
-                  </ul>
+                  <div className="rounded-xl border border-ink-700 bg-ink-900/40 p-3 text-sm">
+                    <div className="mb-1 text-xs font-semibold text-slate-400">下一步</div>
+                    <ul className="list-disc space-y-1 pl-5 text-slate-300">
+                      {ai.tips.map((t, i) => <li key={i}>{t}</li>)}
+                    </ul>
+                  </div>
                 )}
               </div>
             )}
-            {!ai && !aiMsg && <p className="mt-2 text-xs text-slate-500">免費的話直接看下面清單;想要個人化建議再按 AI(會用一次額度)。</p>}
+            {!ai && !aiMsg && <p className="mt-2 text-xs text-slate-500">按下後 AI 會讀你「實際說錯的句子(你說的 vs 正解)」,逐類歸納錯在哪、舉實例、給修正。</p>}
           </div>
 
           <Section title="弱句型" items={drills} href="/" hrefLabel="練這個" empty="目前沒有弱句型 🎉" />

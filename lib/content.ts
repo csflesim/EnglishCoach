@@ -40,6 +40,13 @@ export async function getErrorStats(): Promise<{ tag: string; count: number }[]>
   for (const r of rows) m[r.kind] = (m[r.kind] ?? 0) + 1;
   return Object.entries(m).map(([tag, count]) => ({ tag, count })).sort((a, b) => b.count - a.count);
 }
+// 詳細錯誤樣本(正解 vs 你說的),供 AI 深入分析。取最近 limit 筆。
+export type ErrorSample = { kind: string; expected: string | null; said: string | null; lesson_id: string | null };
+export async function getErrorSamples(limit = 80): Promise<ErrorSample[]> {
+  if (!hasSupabase) return [];
+  const rows = await selectAllScoped<ErrorSample>("error_log", "kind,expected,said,lesson_id");
+  return rows.slice(-limit);
+}
 
 // 已判斷組合快取(句框×單字)。checked=全部判過;bad=判定不通的。鍵 "frame|word"
 export const comboKey = (frame: string, word: string) => `${frame}|${word}`;

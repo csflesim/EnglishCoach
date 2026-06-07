@@ -56,13 +56,23 @@ export async function genToeic(opts: { count?: number; focus?: string[]; level?:
   }
 }
 
-export type LearnAnalysis = { summary: string; tips: string[] };
+export type ErrorCategory = { category: string; count: number; diagnosis: string; examples: { wrong: string; correct: string }[]; fix: string };
+export type LearnAnalysis = { summary: string; categories: ErrorCategory[]; tips: string[] };
 export async function analyzeLearning(data: unknown): Promise<LearnAnalysis | null> {
   try {
     const r = await fetch("/api/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
     const j = await r.json();
     if (j.error || typeof j.summary !== "string") return null;
-    return { summary: j.summary, tips: Array.isArray(j.tips) ? j.tips : [] };
+    const categories: ErrorCategory[] = Array.isArray(j.categories)
+      ? j.categories.map((c: Record<string, unknown>) => ({
+          category: String(c.category ?? "其他"),
+          count: Number(c.count ?? 0),
+          diagnosis: String(c.diagnosis ?? ""),
+          examples: Array.isArray(c.examples) ? (c.examples as Record<string, unknown>[]).map((e) => ({ wrong: String(e.wrong ?? ""), correct: String(e.correct ?? "") })) : [],
+          fix: String(c.fix ?? ""),
+        }))
+      : [];
+    return { summary: j.summary, categories, tips: Array.isArray(j.tips) ? j.tips : [] };
   } catch {
     return null;
   }
