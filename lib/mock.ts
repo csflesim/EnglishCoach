@@ -436,7 +436,10 @@ const extraFrames: Record<string, SubFrame[]> = {};
 export function vocabByCategory(category: string, pos?: string, slot?: string) {
   let pool = vocabBank.filter((v) => v.category === category);
   if (pos) pool = pool.filter((v) => !v.pos || v.pos === pos);
-  if (slot && pool.some((v) => v.slots && v.slots.length)) pool = pool.filter((v) => v.slots?.includes(slot));
+  if (slot && pool.some((v) => v.slots && v.slots.length)) {
+    const f = pool.filter((v) => v.slots?.includes(slot));
+    if (f.length) pool = f; // 該語意槽沒有任何字 → 退回不過濾,避免句框變空白
+  }
   return pool.slice().sort((a, b) => (a.difficulty ?? 9999) - (b.difficulty ?? 9999));
 }
 export function vocabCategories(): string[] {
@@ -463,12 +466,12 @@ function mk(id: string, unit: number, patternText: string, substitution: SubFram
 }
 export let lessons: PatternLesson[] = [
   mk("L_am",1,"I am ___.",[
-    {frame:"{S} {v} ___.",frameZh:"{Sz}很 ___。",category:"describe",conj:"be",pos:"adj",slot:"adj"},
+    {frame:"{S} {v} ___.",frameZh:"{Sz}很 ___。",category:"describe",conj:"be",pos:"adj",slot:"adj_person"},
     {frame:"{S} {v} a ___.",frameZh:"{Sz}是 ___。",category:"person",conj:"be",pos:"n",slot:"role"},
     {frame:"{S} {v} at the ___.",frameZh:"{Sz}在 ___。",category:"place",conj:"be",pos:"n",slot:"place"},
   ]),
   mk("L_are",2,"Are you ___?",[
-    {frame:"{S} {v} ___.",frameZh:"{Sz}很 ___。",category:"describe",conj:"be",op:"question",pos:"adj",slot:"adj"},
+    {frame:"{S} {v} ___.",frameZh:"{Sz}很 ___。",category:"describe",conj:"be",op:"question",pos:"adj",slot:"adj_person"},
     {frame:"{S} {v} ___.",frameZh:"{Sz}覺得 ___。",category:"feeling",conj:"be",op:"question",pos:"adj",slot:"adj"},
   ]),
   mk("L_where",3,"Where is ___?",[
@@ -504,7 +507,7 @@ export let lessons: PatternLesson[] = [
     {frame:"{S} {v} ___.",frameZh:"{Sz}會 ___。",category:"action",conj:"will",pos:"v",slot:"verb_intrans"},
   ]),
   mk("L_u12",12,"It is very ___.",[
-    {frame:"{S} {v} very ___.",frameZh:"{Sz}很 ___。",category:"describe",conj:"be",subj:"it",pos:"adj",slot:"adj"},
+    {frame:"{S} {v} very ___.",frameZh:"{Sz}很 ___。",category:"describe",conj:"be",subj:"it",pos:"adj",slot:"adj_thing"},
   ]),
   mk("L_u13",13,"___ because ___.",[
     {frame:"{S} {v} ___ because of work.",frameZh:"{Sz}因為工作而 ___。",category:"feeling",conj:"be",pos:"adj",slot:"adj"},
@@ -531,7 +534,7 @@ export let lessons: PatternLesson[] = [
     {frame:"{S} {v} ___.",frameZh:"{Sz}可以 ___。",category:"action",conj:"can",op:"question",pos:"v",slot:"verb_intrans"},
   ]),
   mk("L_u20",20,"It looks ___.",[
-    {frame:"{S} {v} ___.",frameZh:"{Sz}看起來 ___。",category:"describe",conj:"look",subj:"it",pos:"adj",slot:"adj"},
+    {frame:"{S} {v} ___.",frameZh:"{Sz}看起來 ___。",category:"describe",conj:"look",subj:"it",pos:"adj",slot:"adj_thing"},
   ]),
   mk("L_u21",21,"I have ___ed.",[
     {frame:"{S} ___ it.",frameZh:"{Sz}已經 ___ 它了。",category:"action",conj:"@perfect",pos:"v",slot:"verb_trans"},
@@ -543,7 +546,7 @@ export let lessons: PatternLesson[] = [
     {frame:"{S} ___.",frameZh:"{Sz}被 ___。",category:"action",conj:"@passive",op:"past",subj:"it",pos:"v",slot:"verb_trans"},
   ]),
   mk("L_u24",24,"The one that ___.",[
-    {frame:"I want the one that is ___.",frameZh:"我要 ___ 的那個。",category:"describe",pos:"adj",slot:"adj"},
+    {frame:"I want the one that is ___.",frameZh:"我要 ___ 的那個。",category:"describe",pos:"adj",slot:"adj_thing"},
   ]),
   mk("L_u25",25,"I had ___ed before.",[
     {frame:"{S} ___ before.",frameZh:"{Sz}先前已 ___。",category:"action",conj:"@perfect",op:"past",pos:"v",slot:"verb_intrans"},
@@ -558,7 +561,7 @@ export let lessons: PatternLesson[] = [
     {frame:"Let's ___ together.",frameZh:"一起 ___ 吧。",category:"action",pos:"v",slot:"verb_intrans"},
   ]),
   mk("L_u29",29,"On the other hand, ___.",[
-    {frame:"On the other hand, it is ___.",frameZh:"另一方面,它很 ___。",category:"describe",pos:"adj",slot:"adj"},
+    {frame:"On the other hand, it is ___.",frameZh:"另一方面,它很 ___。",category:"describe",pos:"adj",slot:"adj_thing"},
   ]),
   mk("L_u30",30,"First ___, then ___.",[
     {frame:"First I ___, then I leave.",frameZh:"我先 ___,然後離開。",category:"action",pos:"v",slot:"verb_intrans"},
