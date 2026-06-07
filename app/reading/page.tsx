@@ -6,6 +6,7 @@ import { genReading, type ReadingPassage } from "@/lib/ai";
 import { logReview } from "@/lib/review";
 import { logSession } from "@/lib/practice";
 import { logErrors, initContent } from "@/lib/content";
+import { getReadingFromBank, saveReading } from "@/lib/genbank";
 
 type Phase = "intro" | "loading" | "read" | "quiz" | "result";
 const LEVELS: { key: string; label: string; desc: string }[] = [
@@ -46,11 +47,16 @@ export default function ReadingPage() {
   useEffect(() => { initContent(); }, []);
   useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
 
-  async function start() {
+  async function start(forceNew = false) {
     setPhase("loading"); setMsg("");
-    const r = await genReading({ level, topic: topic.trim() });
-    const d = r ?? FALLBACK;
-    if (!r) setMsg("(用內建範例;設定 OpenAI 金鑰可無限生成、選難度與主題)");
+    let d: ReadingPassage | null = null;
+    // 題庫優先(不扣額度);指定主題或要新題才呼叫 AI
+    if (!forceNew && !topic.trim()) d = await getReadingFromBank(level);
+    if (!d) {
+      const r = await genReading({ level, topic: topic.trim() });
+      if (r) { d = r; saveReading(r, level, topic.trim()); } // 存進題庫,日後重用
+    }
+    if (!d) { d = FALLBACK; setMsg("(用內建範例;設定 OpenAI 金鑰可無限生成、選難度與主題)"); }
     setData(d); setAnswers(new Array(d.questions.length).fill(null)); setAdded({});
     setPhase("read");
     startRef.current = Date.now(); setReadSec(0); setLiveSec(0);
@@ -98,8 +104,9 @@ export default function ReadingPage() {
           </div>
           <div className="mb-1 text-sm font-semibold text-slate-200">主題(可留空)</div>
           <input value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="例:environment, technology, health…" className="mb-4 w-full rounded-lg border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent" />
-          <button onClick={start} className="btn-primary w-full py-3">開始閱讀</button>
-          <p className="mt-3 text-center text-[11px] text-slate-600">技巧:先 30 秒掃過(標題+每段首句)抓大意,再依題目關鍵字回文定位,不要逐字回讀。</p>
+          <button onClick={() => start(false)} className="btn-primary w-full py-3">開始閱讀(題庫優先)</button>
+          <button onClick={() => start(true)} className="btn-ghost mt-2 w-full py-2.5 text-sm">🤖 生成新題(AI,會扣額度並存入題庫)</button>
+          <p className="mt-3 text-center text-[11px] text-slate-600">技巧:先 30 秒掃過(標題+每段首句)抓大意,再依題目關鍵字回文定位,不要逐字回讀。指定主題時一律用 AI 生成。</p>
         </div>
       </Shell>
     );
@@ -204,7 +211,7 @@ export default function ReadingPage() {
 
       <div className="mt-4 flex gap-2">
         <button onClick={() => setPhase("intro")} className="btn-ghost flex-1">回設定</button>
-        <button onClick={start} className="btn-primary flex-1">再來一篇</button>
+        <button onClick={() => start(false)} className="btn-primary flex-1">再來一篇</button>
       </div>
       {msg && <p className="mt-3 text-center text-[11px] text-slate-600">{msg}</p>}
     </Shell>

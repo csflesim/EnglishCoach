@@ -6,6 +6,7 @@ import { genToeic, type ToeicQuestion } from "@/lib/ai";
 import { getErrorStats, logErrors, initContent } from "@/lib/content";
 import { TOEIC_BANK } from "@/lib/toeicBank";
 import { getWrong, addWrong, removeWrong } from "@/lib/toeicStore";
+import { getToeicFromBank, saveToeic } from "@/lib/genbank";
 
 const LETTERS = ["A", "B", "C", "D"];
 const ALL_SKILLS = Array.from(new Set(TOEIC_BANK.map((q) => q.skill)));
@@ -48,10 +49,15 @@ export default function ToeicPage() {
   function startBank() { setMsg(""); begin(pickFromBank(weak, 6), "practice"); }
   async function startAI() {
     setLoading(true); setMsg("");
-    const ai = await genToeic({ count: 6, focus: weak });
+    // 先用雲端題庫裡「之前 AI 生成過」的題(不扣額度);不足才生成新題並存起來
+    let qs = await getToeicFromBank(6, weak);
+    if (qs.length < 6) {
+      const ai = await genToeic({ count: 6 - qs.length, focus: weak });
+      if (ai && ai.length) { saveToeic(ai); qs = [...qs, ...ai]; }
+    }
     setLoading(false);
-    if (ai && ai.length) begin(ai, "practice");
-    else { setMsg("AI 出題失敗(可能未設金鑰),改用題庫。"); begin(pickFromBank(weak, 6), "practice"); }
+    if (qs.length) begin(shuffle(qs).slice(0, 6), "practice");
+    else { setMsg("AI 出題失敗(可能未設金鑰),改用內建題庫。"); begin(pickFromBank(weak, 6), "practice"); }
   }
   function startReview() {
     const w = shuffle(getWrong()).slice(0, 10);
