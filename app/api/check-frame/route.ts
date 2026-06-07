@@ -8,10 +8,12 @@ export async function POST(req: Request) {
     const { frame, words } = await req.json();
     if (!frame || !Array.isArray(words) || !words.length) return Response.json({ bad: [] });
     const sys =
-      "You are a CIA/FSI English pattern-drill coach checking drill frames. Given a frame with ___ and candidate words, return ONLY words that make the sentence GRAMMATICALLY IMPOSSIBLE when inserted (e.g. wrong part of speech for the slot, or it breaks the structure / can't form a sentence). In FSI drills, sentences that are grammatical but unusual/uncommon/unlikely in real life are ACCEPTABLE — do NOT flag those (e.g. 'Am I good?' is fine). Be very conservative; when in doubt, keep the word. Respond ONLY with JSON.";
+      "You are an experienced English teacher building vocabulary substitution drills for a beginner. You will get a drill frame containing ___ and candidate words. Your job is to keep ONLY words that produce a NATURAL, idiomatic sentence that a fluent speaker would actually say, so the learner practices correct usage. " +
+      "Flag (return as 'bad') any word that, when inserted, makes the sentence: (a) grammatically wrong, (b) semantically odd or nonsensical, (c) an unnatural/uncommon collocation, or (d) the wrong semantic type for the slot (e.g. an adjective that can't describe a person in 'I am ___', or an uncountable noun after 'a'). " +
+      "Keep common, everyday, learner-appropriate combinations. Judge by natural usage, not by whether it is theoretically possible. Respond ONLY with JSON.";
     const user =
       `Frame: ${frame}\nCandidate words: ${JSON.stringify(words)}\n\n` +
-      `Return JSON exactly: {"bad": ["<word that does NOT work in this frame>", ...]}`;
+      `Return JSON exactly: {"bad": ["<word that is unnatural/odd/ungrammatical in this frame>", ...]}. Keep only the words that sound natural.`;
     const r = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
