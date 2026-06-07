@@ -10,7 +10,8 @@ const nav = [
   { href: "/", label: "訓練", en: "Training", icon: "⚡" },
   { href: "/words", label: "單詞", en: "Words", icon: "🔤" },
   { href: "/sentences", label: "句子", en: "Sentences", icon: "💬" },
-  { href: "/toeic", label: "多益", en: "TOEIC", icon: "📖" },
+  { href: "/toeic", label: "多益", en: "TOEIC", icon: "📝" },
+  { href: "/reading", label: "閱讀", en: "Reading", icon: "📖" },
   { href: "/analysis", label: "分析", en: "Analysis", icon: "◎" },
   { href: "/progress", label: "我的", en: "Mine", icon: "▤" },
 ];

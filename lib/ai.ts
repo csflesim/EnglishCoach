@@ -57,6 +57,35 @@ export async function genToeic(opts: { count?: number; focus?: string[]; level?:
 }
 
 export type ErrorCategory = { category: string; count: number; diagnosis: string; examples: { wrong: string; correct: string }[]; fix: string };
+export type ReadingQuestion = { type: "tfng" | "mcq"; prompt: string; options?: string[]; answer: string | number; explanation: string };
+export type ReadingPassage = { title: string; passage: string; wordCount: number; questions: ReadingQuestion[]; vocab: { word: string; zh: string }[] };
+// 閱讀短文生成。失敗回 null。
+export async function genReading(opts: { level?: string; topic?: string }): Promise<ReadingPassage | null> {
+  try {
+    const r = await fetch("/api/reading", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(opts) });
+    const j = await r.json();
+    if (j.error || typeof j.passage !== "string" || !Array.isArray(j.questions)) return null;
+    const questions: ReadingQuestion[] = j.questions
+      .filter((q: Record<string, unknown>) => q && (q.type === "tfng" || q.type === "mcq"))
+      .map((q: Record<string, unknown>) => ({
+        type: q.type as "tfng" | "mcq",
+        prompt: String(q.prompt ?? ""),
+        options: Array.isArray(q.options) ? (q.options as string[]).map(String) : undefined,
+        answer: q.type === "mcq" ? Number(q.answer) : String(q.answer),
+        explanation: String(q.explanation ?? ""),
+      }));
+    return {
+      title: String(j.title ?? "Reading"),
+      passage: j.passage,
+      wordCount: j.passage.trim().split(/\s+/).filter(Boolean).length,
+      questions,
+      vocab: Array.isArray(j.vocab) ? (j.vocab as Record<string, unknown>[]).map((v) => ({ word: String(v.word ?? ""), zh: String(v.zh ?? "") })).filter((v) => v.word) : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
 export type LearnAnalysis = { summary: string; categories: ErrorCategory[]; tips: string[] };
 export async function analyzeLearning(data: unknown): Promise<LearnAnalysis | null> {
   try {
