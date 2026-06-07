@@ -28,6 +28,7 @@ import { transcribe, checkFrame, sessionReview, type EvalResult, type SessionRev
 import { logReview, getWordReviewMap, getDrillReviewMap, drillKey, repCountForBox, logDrill, type DrillReview } from "@/lib/review";
 import { logSession } from "@/lib/practice";
 import { localJudge } from "@/lib/match";
+import { patternsByTier, SP_BASIC, SP_APPLIED, type SentencePattern } from "@/lib/sentencePatterns";
 
 type Mode = "home" | "select" | "selectSub" | "selectSubPerson" | "selectTransFrame" | "selectOp" | "running" | "complete";
 type RunPhase = "groupIntro" | "cue" | "listening" | "speaking" | "reveal";
@@ -66,6 +67,9 @@ const tierColor: Record<string, string> = {
 export default function TrainingPage() {
   const [mode, setMode] = useState<Mode>("home");
   const [showSettings, setShowSettings] = useState(false);
+  const [trainMode, setTrainMode] = useState<"fsi" | "sentence">("fsi"); // 訓練分層:FSI模式 / 句型模式
+  const [sentenceTier, setSentenceTier] = useState<"basic" | "applied">("basic");
+  const patternModeRef = useRef<SentencePattern | null>(null); // 非 null = 句型模式,finish 時略過 FSI 進度
   const [selectedId, setSelectedId] = useState(learner.todayLessonId);
   const [drillType, setDrillType] = useState<DrillType>("Substitution");
   const [selectedOp, setSelectedOp] = useState<string | undefined>(undefined);
@@ -507,13 +511,14 @@ export default function TrainingPage() {
     const ts = timesRef.current;
     const avg = ts.length ? ts.reduce((a, b) => a + b, 0) / ts.length : null;
     logSession({ duration_sec: dur, drill_type: meta.mode, lesson_id: lid, reps: stepsRef.current.length, avg_reaction: avg });
-    // drill gap:整輪全對→box+1(間隔變長);有錯→歸零。
-    // AI 背景模式:對錯要等整輪 AI 評分,故延後到分析完成再記(見 complete 的 effect)。
-    if (!aiRef.current) logDrill(lid, meta.mode, lessonRef.current.patternText, sessionErrorRef.current);
-    // 記錄完成的細粒度進度(人稱×句框×模式)→ 推進學習地圖
-    const np = markSession(progressRef.current, lid, { mode: meta.mode, frame: meta.frame, person: meta.person, op: meta.op });
-    setProgress(np);
-    progressRef.current = np;
+    // 句型模式:不寫 FSI 進度/間隔(只記練習時間)
+    if (!patternModeRef.current) {
+      // drill gap:整輪全對→box+1;有錯→歸零。AI 背景模式延後到分析完成再記。
+      if (!aiRef.current) logDrill(lid, meta.mode, lessonRef.current.patternText, sessionErrorRef.current);
+      const np = markSession(progressRef.current, lid, { mode: meta.mode, frame: meta.frame, person: meta.person, op: meta.op });
+      setProgress(np);
+      progressRef.current = np;
+    }
     setMode("complete");
   }
 
@@ -566,6 +571,7 @@ export default function TrainingPage() {
   }
   async function startSession(type: DrillType, opKey?: string, frameKey?: string, person?: PKey | "all") {
     unlockTTS(); // 在點擊手勢當下解鎖手機語音
+    patternModeRef.current = null; // 一般 FSI 模式
     // AI 選詞過濾:把此句框沒判過的字交給 AI,壞的排除(判過不重判)
     const fr = framesOf(getLesson(selectedId));
     const f = type === "Substitution" ? fr.find((x) => x.frame === opKey) ?? fr[0] : transformFrames(getLesson(selectedId)).find((x) => x.frame === frameKey) ?? transformFrames(getLesson(selectedId))[0];
@@ -609,6 +615,27 @@ export default function TrainingPage() {
     }
     runStep(0);
   }
+  // 句型模式:練一個句型的例句(看公式/聽例句 → 跟讀說出 → 比對)。沿用 running 引擎。
+  async function startPatternSession(p: SentencePattern) {
+    unlockTTS();
+    patternModeRef.current = p;
+    const s: Step[] = p.examples.map((ex) => ({ type: "Substitution" as DrillType, cue: ex, answer: ex, nativeZh: p.zh ?? "", groupKey: p.id, groupTitle: p.pattern }));
+    sessionMetaRef.current = { lessonId: `pattern:${p.id}`, mode: "Substitution" };
+    sessionErrorRef.current = false;
+    repsRef.current = [];
+    batchDoneRef.current = false;
+    setSessionAi(null); setSessionAiMsg(""); setSessionAiLoading(false); setSessionVerdicts([]);
+    stepsRef.current = s;
+    timesRef.current = [];
+    setSteps(s);
+    setDrillType("Substitution");
+    setMode("running");
+    setPaused(false);
+    setEchoStep(null);
+    startRef.current = Date.now();
+    if (useMic && !wsMode) { const ok = await initMic(); setMicError(!ok); micRef.current = ok; }
+    runStep(0);
+  }
   function togglePause() {
     if (paused) { setPaused(false); runStep(idxRef.current); }
     else { setPaused(true); clearTimers(); try { window.speechSynthesis?.cancel(); } catch {} }
@@ -618,7 +645,7 @@ export default function TrainingPage() {
     try { window.speechSynthesis?.cancel(); } catch {}
     stopWebSpeech();
     closeMic();
-    setMode("select");
+    setMode(patternModeRef.current ? "home" : "select");
   }
   useEffect(() => () => { clearTimers(); closeMic(); }, []);
   useEffect(() => { initProgress().then(setProgress); }, []);
@@ -737,6 +764,38 @@ export default function TrainingPage() {
           <p className="mt-1 text-xs text-slate-500">已掌握 {masteredN} / 30 單元</p>
         </div>
 
+        {/* 訓練分層:FSI模式 / 句型模式 */}
+        <div className="mb-4 flex items-stretch gap-2">
+          <button onClick={() => setTrainMode("fsi")} className={`flex-1 rounded-xl py-2.5 text-sm font-semibold ${trainMode === "fsi" ? "bg-accent text-ink-950" : "bg-ink-800 text-slate-300"}`}>FSI 模式<span className="block text-[10px] font-normal opacity-70">三階段 · 反射操練</span></button>
+          <button onClick={() => setTrainMode("sentence")} className={`flex-1 rounded-xl py-2.5 text-sm font-semibold ${trainMode === "sentence" ? "bg-accent text-ink-950" : "bg-ink-800 text-slate-300"}`}>句型模式<span className="block text-[10px] font-normal opacity-70">基本 + 應用句型</span></button>
+          <button onClick={() => setShowSettings(true)} className="btn-ghost px-3 text-sm" title="設定">⚙</button>
+        </div>
+
+        {trainMode === "sentence" ? (
+          <>
+            <div className="mb-3 flex gap-2">
+              <button onClick={() => setSentenceTier("basic")} className={`chip ${sentenceTier === "basic" ? "bg-accent text-ink-950" : "bg-ink-800 text-slate-300"}`}>基本句型 ({SP_BASIC.length})</button>
+              <button onClick={() => setSentenceTier("applied")} className={`chip ${sentenceTier === "applied" ? "bg-accent text-ink-950" : "bg-ink-800 text-slate-300"}`}>應用句型 ({SP_APPLIED.length})</button>
+            </div>
+            <p className="mb-2 text-xs text-slate-500">{sentenceTier === "basic" ? "五大基本句:看公式 → 跟讀例句。" : "110 常見句型:看公式 → 跟讀例句。"}</p>
+            <ul className="space-y-2">
+              {patternsByTier(sentenceTier).map((p) => (
+                <li key={p.id}>
+                  <button onClick={() => startPatternSession(p)} className="card flex w-full items-center gap-3 p-3.5 text-left transition hover:border-accent/50">
+                    <span className="chip shrink-0 bg-accent/15 text-[10px] text-accent">{p.id}</span>
+                    <div className="min-w-0 flex-1">
+                      <code className="text-sm font-semibold text-slate-100">{p.pattern}</code>
+                      {p.zh && <div className="text-[11px] text-slate-500">{p.zh}</div>}
+                      <div className="truncate text-[11px] text-slate-600">{p.examples[0]}</div>
+                    </div>
+                    <span className="chip shrink-0 bg-ink-700 text-[10px] text-slate-300">{p.examples.length} 句</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
+        <>
         <button onClick={() => openLesson(todayId)} className="block w-full overflow-hidden rounded-2xl border border-accent/40 bg-gradient-to-br from-accent/10 to-ink-900 p-6 text-left transition hover:border-accent/70">
           <div className="text-xs font-semibold uppercase tracking-wide text-accent">{recDue ? "推薦 · Recommendation(複習到期)" : "推薦 · Recommendation"}</div>
           <div className="mt-1 text-2xl font-bold text-slate-100">{getLesson(todayId).patternText}</div>
@@ -747,7 +806,6 @@ export default function TrainingPage() {
         <div className="mt-6">
           <div className="mb-2 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-slate-300">學習路徑 · FSI 30 單元</h2>
-            <button onClick={() => setShowSettings(true)} className="btn-ghost px-3 py-1.5 text-xs">⚙ 設定</button>
           </div>
           <div className="space-y-4">
             {learningPath.map((c) => (
@@ -781,6 +839,8 @@ export default function TrainingPage() {
             ))}
           </div>
         </div>
+        </>
+        )}
         {settingsOverlay}
       </Shell>
     );
@@ -962,8 +1022,8 @@ export default function TrainingPage() {
       <Shell>
         <div className="card p-8 text-center">
           <div className="text-5xl">🎯</div>
-          <h2 className="mt-3 text-2xl font-bold">{drillTypeZh[drillType]}完成！</h2>
-          <p className="mt-1 text-sm text-slate-400">{lesson.patternText}</p>
+          <h2 className="mt-3 text-2xl font-bold">{patternModeRef.current ? "句型練習" : drillTypeZh[drillType]}完成！</h2>
+          <p className="mt-1 text-sm text-slate-400">{patternModeRef.current ? patternModeRef.current.pattern : lesson.patternText}</p>
           <div className="mx-auto mt-6 grid max-w-md grid-cols-2 gap-3 sm:grid-cols-4">
             <div className="rounded-xl border border-ink-700 bg-ink-900/40 p-3"><div className="text-2xl font-black text-slate-100">{stepsRef.current.length}</div><div className="text-xs text-slate-500">完成發數</div></div>
             <div className="rounded-xl border border-ink-700 bg-ink-900/40 p-3"><div className="text-2xl font-black text-accent">{avg ? avg.toFixed(1) : "—"}s</div><div className="text-xs text-slate-500">平均反應</div></div>
@@ -1012,8 +1072,17 @@ export default function TrainingPage() {
           )}
 
           <div className="mx-auto mt-6 flex max-w-sm gap-2">
-            <button onClick={() => startSession(drillType, selectedOp, selectedFrame, selectedPerson)} className="btn-ghost flex-1">再練一次</button>
-            <button onClick={() => setMode("select")} className="btn-primary flex-1">換個模式</button>
+            {patternModeRef.current ? (
+              <>
+                <button onClick={() => startPatternSession(patternModeRef.current!)} className="btn-ghost flex-1">再練一次</button>
+                <button onClick={() => setMode("home")} className="btn-primary flex-1">回句型列表</button>
+              </>
+            ) : (
+              <>
+                <button onClick={() => startSession(drillType, selectedOp, selectedFrame, selectedPerson)} className="btn-ghost flex-1">再練一次</button>
+                <button onClick={() => setMode("select")} className="btn-primary flex-1">換個模式</button>
+              </>
+            )}
           </div>
         </div>
         {settingsOverlay}
