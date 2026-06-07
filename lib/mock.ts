@@ -433,12 +433,34 @@ export let vocabBank: VocabWord[] = [
 const extraFrames: Record<string, SubFrame[]> = {};
 
 // 依分類抓字;pos 過濾(A)、slot 文法槽過濾(B,有資料才生效)、難易由易到難
+// 句框舊 slot → 新語意子槽需求(sem 命中其一即可;count 需符合)。見 lib/sem.ts。
+const SLOT_SEM: Record<string, { sem: string[]; count?: "c" | "u" }> = {
+  adj_person: { sem: ["adj.person.trait", "adj.person.state", "adj.feeling"] },
+  adj_thing: { sem: ["adj.thing.quality", "adj.thing.physical", "adj.thing.appearance", "adj.color", "adj.shape"] },
+  adj: { sem: ["adj.feeling"] }, // feeling 句框
+  role: { sem: ["person.job", "person.relation"], count: "c" },
+  count: { sem: ["thing.object", "thing.device", "thing.document", "thing.clothing", "thing.furniture"], count: "c" },
+  place: { sem: ["place.building", "place.area", "place.room", "place.nature"] },
+  mass: { sem: ["food.dish", "food.drink", "food.ingredient"], count: "u" },
+  transport: { sem: ["transport.vehicle"] },
+  verb_intrans: { sem: ["verb_intrans"] },
+  verb_trans: { sem: ["verb_trans"] },
+};
+
 export function vocabByCategory(category: string, pos?: string, slot?: string) {
   let pool = vocabBank.filter((v) => v.category === category);
   if (pos) pool = pool.filter((v) => !v.pos || v.pos === pos);
   if (slot && pool.some((v) => v.slots && v.slots.length)) {
-    const f = pool.filter((v) => v.slots?.includes(slot));
-    if (f.length) pool = f; // 該語意槽沒有任何字 → 退回不過濾,避免句框變空白
+    const req = SLOT_SEM[slot];
+    if (req) {
+      const semSet = new Set(req.sem);
+      let f = pool.filter((v) => v.slots?.some((s) => semSet.has(s)));
+      if (req.count) f = f.filter((v) => v.slots?.includes(req.count!));
+      if (f.length) pool = f; // 命中為空 → 退回不過濾,句框不會變空白
+    } else {
+      const f = pool.filter((v) => v.slots?.includes(slot)); // 未對映的舊 slot:沿用原行為
+      if (f.length) pool = f;
+    }
   }
   return pool.slice().sort((a, b) => (a.difficulty ?? 9999) - (b.difficulty ?? 9999));
 }
